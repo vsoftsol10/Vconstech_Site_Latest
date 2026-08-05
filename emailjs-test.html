@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EmailJS Test - Vconstech</title>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/emailjs.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        button {
+            background: #ffbe01;
+            color: black;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+        }
+        button:hover {
+            background: #e6a900;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            display: none;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>EmailJS Test - Vconstech Demo Form</h1>
+        <p>This is a standalone test page to verify EmailJS configuration.</p>
+
+        <form id="demoForm">
+            <div class="form-group">
+                <label for="name">Full Name *</label>
+                <input type="text" id="name" name="customer_name" required placeholder="John Doe">
+            </div>
+
+            <div class="form-group">
+                <label for="email">Email Address *</label>
+                <input type="email" id="email" name="customer_email" required placeholder="john@company.com">
+            </div>
+
+            <div class="form-group">
+                <label for="phone">Phone Number *</label>
+                <input type="tel" id="phone" name="customer_phone" required placeholder="(555) 123-4567">
+            </div>
+
+            <div class="form-group">
+                <label for="profession">Profession *</label>
+                <select id="profession" name="customer_profession" required>
+                    <option value="">Select your profession</option>
+                    <option value="interior-designer">Interior Designer</option>
+                    <option value="building-developer">Building Developer</option>
+                    <option value="contractor">Contractor</option>
+                    <option value="architect">Architect</option>
+                    <option value="project-manager">Project Manager</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="message">Message (Optional)</label>
+                <textarea id="message" name="customer_message" rows="4" placeholder="Tell us about your requirements..."></textarea>
+            </div>
+
+            <input type="hidden" name="demo_request_date" value="">
+
+            <button type="submit">Send Demo Request</button>
+        </form>
+
+        <div id="result" class="result"></div>
+
+        <div style="margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 5px;">
+            <h3>Debug Information:</h3>
+            <p><strong>Service ID:</strong> service_lffy5z8</p>
+            <p><strong>Template ID:</strong> template_l7iea6q</p>
+            <p><strong>Public Key:</strong> tpNU42sxp3WhjZDdz</p>
+            <p><strong>Open Console (F12)</strong> to see detailed logs.</p>
+        </div>
+    </div>
+
+    <script>
+        // Initialize EmailJS
+        (function() {
+            emailjs.init('tpNU42sxp3WhjZDdz');
+            console.log('EmailJS initialized');
+        })();
+
+        // Handle form submission
+        document.getElementById('demoForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const resultDiv = document.getElementById('result');
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'result';
+
+            // Set current date
+            document.querySelector('input[name="demo_request_date"]').value = new Date().toLocaleDateString();
+
+            const formData = new FormData(this);
+            const templateParams = {};
+
+            for (let [key, value] of formData.entries()) {
+                templateParams[key] = value;
+            }
+
+            console.log('Sending email with params:', templateParams);
+
+            // Show loading
+            resultDiv.innerHTML = '⏳ Sending email...';
+            resultDiv.className = 'result';
+
+            emailjs.send('service_lffy5z8', 'template_l7iea6q', templateParams)
+                .then(function(response) {
+                    console.log('SUCCESS!', response.status, response.text);
+                    resultDiv.innerHTML = '✅ Email sent successfully! Check your inbox.';
+                    resultDiv.className = 'result success';
+                    document.getElementById('demoForm').reset();
+                }, function(error) {
+                    console.log('FAILED...', error);
+                    resultDiv.innerHTML = `❌ Failed to send email: ${error.text || 'Unknown error'}`;
+                    resultDiv.className = 'result error';
+                });
+        });
+    </script>
+</body>
+</html>
