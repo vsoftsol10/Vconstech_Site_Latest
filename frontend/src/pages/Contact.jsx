@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import emailjs from '@emailjs/browser';
 import { AlertCircle, CheckCircle, Clock, Play, Youtube } from 'lucide-react';
-import { EMAILJS_CONFIG } from '../config/emailjs';
 import contactHero from '../assets/contact-hero.mp4';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
+
+const WEBSITE_API_BASE_URL = (import.meta.env.VITE_WEBSITE_API_BASE_URL || '/api').replace(/\/$/, '');
 
 const Contact = () => {
   gsap.registerPlugin(ScrollTrigger);
@@ -47,17 +47,14 @@ const Contact = () => {
   const [submitErrorMessage, setSubmitErrorMessage] = useState('');
 
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
+    fullName: '',
     company: '',
     phone: '',
-    subject: '',
-    message: ''
+    email: '',
+    location: '',
+    address: '',
+    requirements: ''
   });
-
-  const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-
-  const adminRecipientEmail = EMAILJS_CONFIG.ADMIN_EMAIL || 'info@thevsoft.com';
 
   useEffect(() => {
     if (!showSuccessMessage) return;
@@ -93,13 +90,12 @@ const validateForm = () => {
   }
 
   // Phone validation
-  if (formData.phone && formData.phone.length !== 10) {
+  if (!formData.phone || formData.phone.length !== 10) {
     newErrors.phone = "Phone number must be exactly 10 digits";
   }
 
-  if (!formData.name) newErrors.name = "Name is required";
-  if (!formData.subject) newErrors.subject = "Subject is required";
-  if (!formData.message) newErrors.message = "Message is required";
+  if (!formData.fullName) newErrors.fullName = "Name is required";
+  if (!formData.company) newErrors.company = "Company name is required";
 
   setErrors(newErrors);
   return Object.keys(newErrors).length === 0;
@@ -118,99 +114,46 @@ const validateForm = () => {
     console.log('Form data:', formData);
 
     try {
-      const templateParams = {
-        customer_name: formData.name,
-        customer_email: formData.email,
-        customer_company: formData.company || 'Not provided',
-        customer_phone: formData.phone || 'Not provided',
-        contact_subject: formData.subject,
-        customer_message: formData.message,
-        contact_date: new Date().toLocaleDateString(),
-        contact_type: 'Demo Booking Request',
-        to_name: 'Vconstech Team',
-        to_email: 'vconstecherp@gmail.com'
-      };
+      const response = await fetch(`${WEBSITE_API_BASE_URL}/contact`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(formData)
+      });
 
-      console.log('Sending admin notification email with params:', templateParams);
+      const result = await response.json().catch(() => ({}));
 
-      // Send admin notification
-      const adminResult = await emailjs.send(
-        EMAILJS_CONFIG.SERVICE_ID,
-        EMAILJS_CONFIG.CONTACT_TEMPLATE_ID,
-        templateParams,
-        EMAILJS_CONFIG.PUBLIC_KEY
-      );
+      if (!response.ok) {
+        if (result?.errors) {
+          setErrors(result.errors);
+        }
 
-      console.log('Admin email sent successfully:', adminResult);
-
-      // Send auto reply to user (only when user email is valid and non-empty)
-      if (isValidEmail(formData.email)) {
-        const userReplyParams = {
-          to_name: formData.name,
-          to_email: formData.email,        // ✅ EmailJS uses this to send the email
-        
-          // Match your template's {{name}}, {{subject}}, {{message}} variables
-          name: formData.name,             // ✅ for {{name}} in template
-          subject: formData.subject,       // ✅ for {{subject}} in template  
-          message: formData.message,       // ✅ for {{message}} in template
-        
-          // Keep these too (extra context, harmless)
-          customer_name: formData.name,
-          customer_email: formData.email,
-          customer_company: formData.company || 'Not provided',
-          customer_phone: formData.phone || 'Not provided',
-          contact_subject: formData.subject,
-          customer_message: formData.message,
-          contact_date: new Date().toLocaleDateString(),
-        };
-
-        const userResult = await emailjs.send(
-          EMAILJS_CONFIG.SERVICE_ID,
-          EMAILJS_CONFIG.CUSTOMER_REPLY_TEMPLATE_ID,
-          userReplyParams,
-          EMAILJS_CONFIG.PUBLIC_KEY
-        );
-
-        console.log('User auto reply sent successfully:', userResult);
-      } else {
-        console.warn('Skipping user auto reply because user email is invalid or empty:', formData.email);
+        throw new Error(result?.message || 'Failed to send message. Please try again.');
       }
 
       setShowSuccessMessage(true);
 
       // Reset form
       setFormData({
-        name: '',
-        email: '',
+        fullName: '',
         company: '',
         phone: '',
-        subject: '',
-        message: ''
+        email: '',
+        location: '',
+        address: '',
+        requirements: ''
       });
 
     } catch (error) {
       console.error('Error sending contact form:', error);
-      console.log('Full error object:', error);
-      console.log('Error text:', error?.text);
-      console.log('Error status:', error?.status);
 
-      // More detailed error handling
       let errorMessage = 'Failed to send message. Please try again.';
 
-      if (error?.text?.includes('Invalid service id')) {
-        errorMessage = '❌ Email service configuration error. Please contact support.';
-      } else if (error?.text?.includes('Template not found')) {
-        errorMessage = '❌ Email template not found. Please contact support.';
-      } else if (error?.text?.includes('Invalid user id')) {
-        errorMessage = '❌ Invalid email configuration. Please contact support.';
-      } else if (error?.text?.includes('The recipients address is empty')) {
-        errorMessage = '❌ Email error: recipient address is missing. Check your template variables to ensure to_email is set.';
-      } else if (error?.text?.includes('rate limit')) {
-        errorMessage = '⏰ Too many requests. Please try again in a few minutes.';
-      } else if (!navigator.onLine) {
-        errorMessage = '📡 No internet connection. Please check your connection.';
-      } else if (error?.text) {
-        errorMessage = `❌ Email error: ${error.text}`;
+      if (!navigator.onLine) {
+        errorMessage = 'No internet connection. Please check your connection.';
+      } else if (error?.message) {
+        errorMessage = error.message;
       }
 
       setSubmitErrorMessage(errorMessage);
@@ -310,19 +253,57 @@ const validateForm = () => {
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
+                    <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-2">
                       Full Name *
                     </label>
                     <input
                       type="text"
-                      id="name"
-                      name="name"
-                      value={formData.name}
+                      id="fullName"
+                      name="fullName"
+                      value={formData.fullName}
                       onChange={handleChange}
                       // required
                       className="w-full px-4 py-3 border border-gray-300 rounded-md focus:ring-[#ffbe01] focus:border-[#ffbe01] transition-colors duration-200"
                       placeholder="John Doe"
-                    />  {errors.name && ( <p className="text-red-500 text-sm mt-1">{errors.name}</p>)}
+                    />  {errors.fullName && ( <p className="text-red-500 text-sm mt-1">{errors.fullName}</p>)}
+
+                  </div>
+                  <div>
+                    <label htmlFor="company" className="block text-sm font-medium text-gray-700 mb-2">
+                      Company Name *
+                    </label>
+                    <input
+                      type="text"
+                      id="company"
+                      name="company"
+                      value={formData.company}
+                      onChange={handleChange}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-md focus:ring-[#ffbe01] focus:border-[#ffbe01] transition-colors duration-200"
+                      placeholder="ABC Construction"
+                    />
+                    {errors.company && ( <p className="text-red-500 text-sm mt-1">{errors.company}</p>)}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-2">
+                      Phone Number *
+                    </label>
+                  <input
+  type="tel"
+  id="phone"
+  name="phone"
+  value={formData.phone}
+  onChange={handleChange}
+  maxLength={10}
+  className="w-full px-4 py-3 border border-gray-300 rounded-md focus:ring-[#ffbe01] focus:border-[#ffbe01]"
+  placeholder="10 digit mobile number"
+/>
+
+{errors.phone && (
+  <p className="text-red-500 text-sm mt-1">{errors.phone}</p>
+)}
 
                   </div>
                   <div>
@@ -346,82 +327,49 @@ const validateForm = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label htmlFor="company" className="block text-sm font-medium text-gray-700 mb-2">
-                      Company Name
+                    <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-2">
+                      Location
                     </label>
                     <input
                       type="text"
-                      id="company"
-                      name="company"
-                      value={formData.company}
+                      id="location"
+                      name="location"
+                      value={formData.location}
                       onChange={handleChange}
                       className="w-full px-4 py-3 border border-gray-300 rounded-md focus:ring-[#ffbe01] focus:border-[#ffbe01] transition-colors duration-200"
-                      placeholder="ABC Construction"
+                      placeholder="Tirunelveli"
                     />
                   </div>
                   <div>
-                    <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-2">
-                      Phone Number
+                    <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-2">
+                      Address
                     </label>
-                  <input
-  type="tel"
-  id="phone"
-  name="phone"
-  value={formData.phone}
-  onChange={handleChange}
-  maxLength={10}
-  className="w-full px-4 py-3 border border-gray-300 rounded-md focus:ring-[#ffbe01] focus:border-[#ffbe01]"
-  placeholder="10 digit mobile number"
-/>
-
-{errors.phone && (
-  <p className="text-red-500 text-sm mt-1">{errors.phone}</p>
-)}
-
+                    <input
+                      type="text"
+                      id="address"
+                      name="address"
+                      value={formData.address}
+                      onChange={handleChange}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-md focus:ring-[#ffbe01] focus:border-[#ffbe01] transition-colors duration-200"
+                      placeholder="Site or office address"
+                    />
                   </div>
                 </div>
 
                 <div>
-                  <label htmlFor="subject" className="block text-sm font-medium text-gray-700 mb-2">
-                    Subject *
-                  </label>
-                  <select
-                    id="subject"
-                    name="subject"
-                    value={formData.subject}
-                    onChange={handleChange}
-                    // required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-md focus:ring-[#ffbe01] focus:border-[#ffbe01] transition-colors duration-200"
-                  >
-                    <option value="">Select a subject</option>
-                    <option value="demo">Request a Demo</option>
-                    <option value="pricing">Pricing Inquiry</option>
-                    <option value="support">Technical Support</option>
-                    <option value="partnership">Partnership Opportunity</option>
-                    <option value="other">Other</option>
-                  </select>
-                  {errors.subject && (
-  <p className="text-red-500 text-sm mt-1">{errors.subject}</p>
-)}
-                </div>
-
-                <div>
-                  <label htmlFor="message" className="block text-sm font-medium text-gray-700 mb-2">
-                    Message *
+                  <label htmlFor="requirements" className="block text-sm font-medium text-gray-700 mb-2">
+                    Requirements
                   </label>
                   <textarea
-                    id="message"
-                    name="message"
-                    value={formData.message}
+                    id="requirements"
+                    name="requirements"
+                    value={formData.requirements}
                     onChange={handleChange}
                     // required
                     rows={6}
                     className="w-full px-4 py-3 border border-gray-300 rounded-md focus:ring-[#ffbe01] focus:border-[#ffbe01] transition-colors duration-200 resize-none"
-                    placeholder="Tell us about your construction project needs..."
+                    placeholder="Tell us about your construction project requirements..."
                   />
-                  {errors.message && (
-  <p className="text-red-500 text-sm mt-1">{errors.message}</p>
-)}
                 </div>
 
                 <button

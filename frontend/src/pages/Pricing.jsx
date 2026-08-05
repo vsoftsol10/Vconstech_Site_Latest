@@ -3,8 +3,6 @@ import { useState, useEffect ,useRef } from 'react';
 import pricingHeroVideo from '../assets/pricing-hero.mp4';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import emailjs from '@emailjs/browser';
-import { EMAILJS_CONFIG } from '../config/emailjs';
 gsap.registerPlugin(ScrollTrigger);
 const RAZORPAY_KEY_ID = import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_live_SUcwPuBShurSZi';
 const ERP_API_BASE_URL = (
@@ -12,11 +10,7 @@ const ERP_API_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL ||
   'http://localhost:5001/api'
 ).replace(/\/$/, '');
-const CRM_API_BASE_URL = (
-  import.meta.env.VITE_CRM_API_BASE_URL ||
-  import.meta.env.VITE_API_BASE_URL ||
-  'http://localhost:5000/api'
-).replace(/\/$/, '');
+const WEBSITE_API_BASE_URL = (import.meta.env.VITE_WEBSITE_API_BASE_URL || '/api').replace(/\/$/, '');
 
 const getPricingLookupParams = () => {
   const searchParams = new URLSearchParams(window.location.search);
@@ -302,31 +296,104 @@ const CheckoutPanel = ({ plan, onClose, onCancel, pricingCustomer }) => {
       return;
     }
 
-    const amountInPaise = total * 100;
     const purchaseFlow = hasLockedCustomer ? 'TRIAL_UPGRADE' : 'DIRECT_WEBSITE_PURCHASE';
+    const purchaseData = {
+      purchaseFlow,
+      userId: pricingCustomer?.userId || '',
+      customerId: pricingCustomer?.crmCustomerId || pricingCustomer?.erpCustomerId || '',
+      crmCustomerId: pricingCustomer?.crmCustomerId || '',
+      erpCustomerId: pricingCustomer?.erpCustomerId || '',
+      name: form.name,
+      companyName: form.companyName,
+      email: form.email,
+      phone: form.phone,
+      plan: plan.name,
+    };
+
+    let orderData;
+
+    try {
+      const orderResponse = await fetch(`${WEBSITE_API_BASE_URL}/payment/create-order`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          planId: plan.id,
+          billingCycle: plan.period,
+          customMembers: isAdvancedPlan(plan.name) ? form.customMembers : null,
+          purchaseFlow,
+          customer: {
+            name: form.name,
+            email: form.email,
+            phone: form.phone,
+            companyName: form.companyName,
+            city: form.city,
+            address: form.address,
+          },
+          pricingCustomer: {
+            userId: pricingCustomer?.userId || '',
+            crmCustomerId: pricingCustomer?.crmCustomerId || '',
+            erpCustomerId: pricingCustomer?.erpCustomerId || '',
+          },
+        })
+      });
+
+      orderData = await orderResponse.json().catch(() => ({}));
+
+      if (!orderResponse.ok || orderData.success === false) {
+        throw new Error(orderData.message || 'Unable to create payment order.');
+      }
+    } catch (error) {
+      console.error('Razorpay order creation failed:', error);
+      alert(error?.message || 'Unable to create payment order. Please try again.');
+      return;
+    }
+
+    const razorpayOrder = orderData?.data?.order;
+    if (!razorpayOrder?.id || !razorpayOrder?.amount) {
+      alert('Unable to create payment order. Please try again.');
+      return;
+    }
 
     const options = {
       key: RAZORPAY_KEY_ID,
-      amount: amountInPaise,
+      amount: razorpayOrder?.amount,
       currency: 'INR',
       name: 'Vconstech',
       description: `${plan.name} Plan (${plan.period})`,
-      handler: function (response) {
+      order_id: razorpayOrder?.id,
+      handler: async function (response) {
         console.log('Razorpay payment success:', response);
-        const params = new URLSearchParams({
-          purchaseFlow,
-          plan: plan.name,
-          paymentId: response?.razorpay_payment_id || '',
-          userId: pricingCustomer?.userId || '',
-          customerId: pricingCustomer?.crmCustomerId || pricingCustomer?.erpCustomerId || '',
-          crmCustomerId: pricingCustomer?.crmCustomerId || '',
-          erpCustomerId: pricingCustomer?.erpCustomerId || '',
-          name: form.name,
-          companyName: form.companyName,
-          email: form.email,
-          phone: form.phone
-        });
-        navigate(`/payment-success?${params.toString()}`);
+        try {
+          const verifyResponse = await fetch(`${WEBSITE_API_BASE_URL}/payment/verify`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              razorpay_order_id: response?.razorpay_order_id,
+              razorpay_payment_id: response?.razorpay_payment_id,
+              razorpay_signature: response?.razorpay_signature,
+              purchaseData,
+            })
+          });
+
+          const verifyData = await verifyResponse.json().catch(() => ({}));
+
+          if (!verifyResponse.ok || verifyData.success === false) {
+            throw new Error(verifyData.message || 'Payment verification failed.');
+          }
+
+          const params = new URLSearchParams({
+            ...purchaseData,
+            paymentId: response?.razorpay_payment_id || '',
+          });
+          navigate(`/payment-success?${params.toString()}`);
+        } catch (error) {
+          console.error('Payment verification failed:', error);
+          const params = new URLSearchParams({
+            plan: plan.name,
+            returnTo: `${window.location.pathname}${window.location.search}`
+          });
+          navigate(`/payment-failed?${params.toString()}`);
+        }
       },
       prefill: {
         name:    form.name,
@@ -879,7 +946,7 @@ const Pricing = () => {
       setPlansError('');
 
       try {
-        const response = await fetch(`${CRM_API_BASE_URL}/plans`);
+        const response = await fetch(`${WEBSITE_API_BASE_URL}/plans`);
         const data = await response.json();
 
         if (!response.ok) {

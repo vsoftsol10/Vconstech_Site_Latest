@@ -1,12 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
 const ERP_LOGIN_URL = import.meta.env.VITE_ERP_LOGIN_URL || 'http://localhost:5173';
-const ERP_API_BASE_URL = (
-  import.meta.env.VITE_ERP_API_BASE_URL ||
-  import.meta.env.VITE_API_BASE_URL ||
-  'http://localhost:5001/api'
-).replace(/\/$/, '');
 
 const getParams = (search) => {
   const params = new URLSearchParams(search);
@@ -31,45 +26,7 @@ const PaymentResult = ({ type }) => {
   const params = getParams(search);
   const { plan, paymentId, returnTo } = params;
   const isSuccess = type === 'success';
-  const [activationStatus, setActivationStatus] = useState(isSuccess ? 'Activating ERP account...' : '');
-  const activationStarted = useRef(false);
-
-  useEffect(() => {
-    if (!isSuccess || activationStarted.current) return;
-    activationStarted.current = true;
-
-    const activatePurchase = async () => {
-      try {
-        const response = await fetch(`${ERP_API_BASE_URL}/subscription-sync/pricing/purchase-success`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            purchaseFlow: params.purchaseFlow,
-            userId: params.userId,
-            customerId: params.customerId,
-            crmCustomerId: params.crmCustomerId,
-            erpCustomerId: params.erpCustomerId,
-            name: params.name,
-            companyName: params.companyName,
-            email: params.email,
-            phone: params.phone,
-            plan: params.plan,
-            paymentId: params.paymentId
-          })
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.success === false) {
-          throw new Error(data.error || data.message || 'ERP activation failed');
-        }
-        setActivationStatus('ERP account is ready. Login details have been sent to your email.');
-      } catch (error) {
-        console.error('ERP purchase activation failed:', error);
-        setActivationStatus('Payment completed. ERP account activation is pending; our team will follow up.');
-      }
-    };
-
-    activatePurchase();
-  }, [isSuccess, params]);
+  const [activationStatus] = useState(isSuccess ? 'ERP account is ready. Login details have been sent to your email.' : '');
 
   return (
     <section className="min-h-[70vh] bg-gray-50 flex items-center justify-center px-4 py-16">

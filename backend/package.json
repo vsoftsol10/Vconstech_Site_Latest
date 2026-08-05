@@ -1,0 +1,33 @@
+{
+  "name": "vconstech-website-backend",
+  "version": "1.0.0",
+  "description": "Independent Express backend scaffold for the Vconstech website.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "build": "node --check server.js && node --check app.js && node --check routes/contactRoutes.js && node --check controllers/contactController.js && node --check services/leadService.js && node --check services/emailService.js && node --check routes/plansRoutes.js && node --check controllers/plansController.js && node --check services/plansService.js && node --check routes/paymentRoutes.js && node --check controllers/paymentController.js && node --check services/paymentService.js",
+    "dev": "nodemon server.js"
+  },
+  "keywords": [
+    "vconstech",
+    "express",
+    "backend"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "helmet": "^8.0.0",
+    "morgan": "^1.10.0",
+    "nodemailer": "^9.0.4",
+    "razorpay": "^2.9.8"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

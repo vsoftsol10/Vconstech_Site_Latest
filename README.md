@@ -1,16 +1,67 @@
-# React + Vite
+# Vconstech Website Monorepo
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This repository contains the Vconstech website frontend and the independent website backend.
 
-Currently, two official plugins are available:
+## Structure
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+```text
+Vconstech-site-master/
+├── frontend/
+│   ├── src/
+│   ├── public/
+│   ├── package.json
+│   ├── vite.config.js
+│   ├── index.html
+│   ├── .env.example
+│   └── .gitignore
+├── backend/
+│   ├── config/
+│   ├── controllers/
+│   ├── middleware/
+│   ├── routes/
+│   ├── services/
+│   ├── utils/
+│   ├── package.json
+│   ├── package-lock.json
+│   ├── app.js
+│   ├── server.js
+│   ├── .env.example
+│   └── .gitignore
+└── README.md
+```
 
-## React Compiler
+## Frontend
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-## Expanding the ESLint configuration
+Production build:
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```bash
+cd frontend
+npm run build
+```
+
+## Backend
+
+```bash
+cd backend
+npm install
+npm run dev
+```
+
+Build check:
+
+```bash
+cd backend
+npm run build
+```
+
+## Notes
+
+- Frontend API configuration belongs in `frontend/.env`.
+- Backend secrets and service configuration belong in `backend/.env`.
+- CRM, Brevo SMTP, Razorpay, ERP integration, API routes, and application logic are unchanged.
