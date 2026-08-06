@@ -1,5 +1,5 @@
 const { env } = require("../config/env");
-const { sendMail } = require("../config/mail");
+const { getSmtpFailurePoint, sendMail, verifyTransporter } = require("../config/mail");
 const {
   getElapsedMs,
   logContactError,
@@ -77,7 +77,7 @@ const buildCustomerAutoReplyHtml = (contact) => `
 const sendLoggedContactEmail = async (requestId, label, mailOptions) => {
   const startedAt = Date.now();
 
-  logContactInfo(requestId, `${label} email start`, {
+  logContactInfo(requestId, `${label} email started`, {
     to: mailOptions.to,
     subject: mailOptions.subject,
   });
@@ -85,7 +85,7 @@ const sendLoggedContactEmail = async (requestId, label, mailOptions) => {
   try {
     const result = await sendMail(mailOptions);
 
-    logContactInfo(requestId, `${label} email success`, {
+    logContactInfo(requestId, `${label} email completed`, {
       duration: getElapsedMs(startedAt),
       messageId: result?.messageId,
       response: result?.response,
@@ -93,8 +93,10 @@ const sendLoggedContactEmail = async (requestId, label, mailOptions) => {
 
     return result;
   } catch (error) {
-    logContactError(requestId, `${label} email failure`, error, {
+    logContactError(requestId, `${label} email failed`, error, {
       duration: getElapsedMs(startedAt),
+      failurePoint: label === "Customer" ? "Customer Email" : "Admin Email",
+      smtpFailurePoint: getSmtpFailurePoint(error),
       to: mailOptions.to,
       subject: mailOptions.subject,
     });
@@ -104,24 +106,17 @@ const sendLoggedContactEmail = async (requestId, label, mailOptions) => {
 
 const sendContactEmails = async (contact, options = {}) => {
   const requestId = options.requestId || "unknown";
+  const startedAt = Date.now();
 
-  const adminEmail = sendLoggedContactEmail(requestId, "Admin", {
-    to: env.adminEmail,
-    replyTo: `"${contact.fullName}" <${contact.email}>`,
-    subject: "New Vconstech ERP Demo Request - Website Demo",
-    html: buildAdminNotificationHtml(contact),
-    text: [
-      "New Vconstech ERP Demo Request",
-      `Customer Name: ${contact.fullName}`,
-      `Company Name: ${contact.company}`,
-      `Phone: ${contact.phone}`,
-      `Email: ${contact.email}`,
-      `Location: ${contact.location || "Not provided"}`,
-      `Address: ${contact.address || "Not provided"}`,
-      `Requirements: ${contact.requirements || "Not provided"}`,
-      `Submission Date & Time: ${contact.submissionTime}`,
-    ].join("\n"),
-  });
+  try {
+    await verifyTransporter();
+  } catch (error) {
+    logContactError(requestId, "SMTP connection verification failed before sending contact emails", error, {
+      duration: getElapsedMs(startedAt),
+      failurePoint: getSmtpFailurePoint(error),
+    });
+    throw error;
+  }
 
   const customerEmail = sendLoggedContactEmail(requestId, "Customer", {
     to: `"${contact.fullName}" <${contact.email}>`,
@@ -142,7 +137,38 @@ const sendContactEmails = async (contact, options = {}) => {
     ].join("\n"),
   });
 
-  return Promise.all([adminEmail, customerEmail]);
+  const adminEmail = sendLoggedContactEmail(requestId, "Admin", {
+    to: env.adminEmail,
+    replyTo: `"${contact.fullName}" <${contact.email}>`,
+    subject: "New Vconstech ERP Demo Request - Website Demo",
+    html: buildAdminNotificationHtml(contact),
+    text: [
+      "New Vconstech ERP Demo Request",
+      `Customer Name: ${contact.fullName}`,
+      `Company Name: ${contact.company}`,
+      `Phone: ${contact.phone}`,
+      `Email: ${contact.email}`,
+      `Location: ${contact.location || "Not provided"}`,
+      `Address: ${contact.address || "Not provided"}`,
+      `Requirements: ${contact.requirements || "Not provided"}`,
+      `Submission Date & Time: ${contact.submissionTime}`,
+    ].join("\n"),
+  });
+
+  const results = await Promise.allSettled([customerEmail, adminEmail]);
+  const failed = results.find((result) => result.status === "rejected");
+
+  logContactInfo(requestId, "Email sending duration", {
+    duration: getElapsedMs(startedAt),
+    customerEmailStatus: results[0].status,
+    adminEmailStatus: results[1].status,
+  });
+
+  if (failed) {
+    throw failed.reason;
+  }
+
+  return results.map((result) => result.value);
 };
 
 module.exports = { sendContactEmails };
