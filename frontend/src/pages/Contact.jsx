@@ -44,6 +44,7 @@ const Contact = () => {
   }, []);
   const [errors, setErrors] = useState({});
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const [isDuplicateSubmission, setIsDuplicateSubmission] = useState(false);
   const [submitErrorMessage, setSubmitErrorMessage] = useState('');
 
   const [formData, setFormData] = useState({
@@ -108,6 +109,7 @@ const validateForm = () => {
     if (!validateForm()) return;
 
     setShowSuccessMessage(false);
+    setIsDuplicateSubmission(false);
     setSubmitErrorMessage('');
 
     console.log('Starting contact form submission...');
@@ -129,9 +131,17 @@ const validateForm = () => {
           setErrors(result.errors);
         }
 
-        throw new Error(result?.message || 'Failed to send message. Please try again.');
+        throw new Error(
+          result?.message ||
+          'Unable to submit your demo request. Please try again.'
+        );
       }
 
+      if (result?.success === false) {
+        throw new Error(result?.message || 'Unable to submit your demo request. Please try again.');
+      }
+
+      setIsDuplicateSubmission(result?.duplicate === true);
       setShowSuccessMessage(true);
 
       // Reset form
@@ -148,11 +158,11 @@ const validateForm = () => {
     } catch (error) {
       console.error('Error sending contact form:', error);
 
-      let errorMessage = 'Failed to send message. Please try again.';
+      let errorMessage = 'Unable to submit your demo request. Please try again.';
 
       if (!navigator.onLine) {
         errorMessage = 'No internet connection. Please check your connection.';
-      } else if (error?.message) {
+      } else if (error?.message && !/failed to fetch/i.test(error.message)) {
         errorMessage = error.message;
       }
 
@@ -381,10 +391,24 @@ const validateForm = () => {
                 {showSuccessMessage ? (
                   <div className="animate-[contactSuccessFadeIn_0.25s_ease-out] rounded-lg border border-green-200 bg-green-50 px-4 py-4 text-center text-green-800">
                     <CheckCircle className="mx-auto mb-2 h-6 w-6 text-green-600" />
-                    <p className="font-semibold">Demo request submitted successfully!</p>
-                    <p className="mt-1 text-sm text-green-700">
-                      Our team will contact you within 24 hours to schedule your live ERP demo.
-                    </p>
+                    {isDuplicateSubmission ? (
+                      <>
+                        <p className="font-semibold">Thank you.</p>
+                        <p className="mt-1 text-sm text-green-700">
+                          We have received your demo request again.
+                        </p>
+                        <p className="mt-1 text-sm text-green-700">
+                          Our team will contact you shortly.
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="font-semibold">Demo request submitted successfully!</p>
+                        <p className="mt-1 text-sm text-green-700">
+                          Our team will contact you within 24 hours to schedule your live ERP demo.
+                        </p>
+                      </>
+                    )}
                   </div>
                 ) : submitErrorMessage ? (
                   <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-4 text-center text-red-800">

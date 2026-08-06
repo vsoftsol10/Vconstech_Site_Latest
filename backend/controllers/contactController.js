@@ -1,4 +1,3 @@
-const { successResponse } = require("../utils/apiResponse");
 const { sendContactEmails } = require("../services/emailService");
 const { createWebsiteDemoLead } = require("../services/leadService");
 
@@ -27,12 +26,18 @@ const submitContact = async (req, res, next) => {
 
     await sendContactEmails(contact);
 
-    return res.status(200).json(
-      successResponse("Contact request submitted successfully", {
+    const duplicate = crmResult.data?.duplicate === true;
+
+    return res.status(200).json({
+      success: true,
+      duplicate,
+      message: "Your demo request has been received successfully.",
+      leadId: crmResult.data?.leadId || crmResult.data?.lead?.id,
+      data: {
         received: true,
         lead: crmResult.data?.lead,
-      })
-    );
+      },
+    });
   } catch (error) {
     return next(error);
   }
