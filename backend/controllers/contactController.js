@@ -39,8 +39,6 @@ const submitContact = async (req, res, next) => {
       return res.status(crmResult.status).json(crmResult.data);
     }
 
-    await sendContactEmails(contact, { requestId });
-
     const duplicate = crmResult.data?.duplicate === true;
     const responseBody = {
       success: true,
@@ -53,13 +51,38 @@ const submitContact = async (req, res, next) => {
       },
     };
 
-    logContactInfo(requestId, "Contact submission completed successfully", {
+    logContactInfo(requestId, "Contact submission completed successfully before email sending", {
       total: getElapsedMs(requestStartedAt),
       duplicate,
       leadId: responseBody.leadId,
     });
 
-    return res.status(200).json(responseBody);
+    res.status(200).json(responseBody);
+
+    Promise.resolve()
+      .then(() => {
+        logContactInfo(requestId, "Post-response email sending started", {
+          duplicate,
+          leadId: responseBody.leadId,
+        });
+        return sendContactEmails(contact, { requestId });
+      })
+      .then(() => {
+        logContactInfo(requestId, "Post-response email sending completed", {
+          total: getElapsedMs(requestStartedAt),
+          duplicate,
+          leadId: responseBody.leadId,
+        });
+      })
+      .catch((error) => {
+        logContactError(requestId, "Post-response email sending failed", error, {
+          total: getElapsedMs(requestStartedAt),
+          duplicate,
+          leadId: responseBody.leadId,
+        });
+      });
+
+    return undefined;
   } catch (error) {
     logContactError(requestId, "Contact submission exception", error, {
       total: getElapsedMs(requestStartedAt),
