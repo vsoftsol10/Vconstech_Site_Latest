@@ -1,4 +1,9 @@
 const { env } = require("../config/env");
+const {
+  getElapsedMs,
+  logContactError,
+  logContactInfo,
+} = require("../utils/contactDiagnostics");
 
 const createWebsiteDemoLeadPayload = (contact) => ({
   fullName: contact.fullName,
@@ -30,7 +35,9 @@ const parseCrmResponse = async (response) => {
   }
 };
 
-const createWebsiteDemoLead = async (contact) => {
+const createWebsiteDemoLead = async (contact, options = {}) => {
+  const requestId = options.requestId || "unknown";
+
   if (!env.crmApiBaseUrl) {
     const error = new Error("CRM_API_BASE_URL is not configured.");
     error.statusCode = 500;
@@ -38,22 +45,52 @@ const createWebsiteDemoLead = async (contact) => {
   }
 
   const payload = createWebsiteDemoLeadPayload(contact);
-  const response = await fetch(`${env.crmApiBaseUrl}/leads`, {
+  const crmStartedAt = Date.now();
+
+  logContactInfo(requestId, "CRM request start", {
+    url: `${env.crmApiBaseUrl}/leads`,
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
+    payload,
   });
 
-  const data = await parseCrmResponse(response);
+  try {
+    const response = await fetch(`${env.crmApiBaseUrl}/leads`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
 
-  return {
-    ok: response.ok,
-    status: response.status,
-    data,
-    payload,
-  };
+    const data = await parseCrmResponse(response);
+
+    logContactInfo(requestId, "CRM request end", {
+      duration: getElapsedMs(crmStartedAt),
+    });
+    logContactInfo(requestId, "CRM response status", {
+      status: response.status,
+      ok: response.ok,
+    });
+    logContactInfo(requestId, "CRM response body", data);
+
+    return {
+      ok: response.ok,
+      status: response.status,
+      data,
+      payload,
+    };
+  } catch (error) {
+    logContactInfo(requestId, "CRM request end", {
+      duration: getElapsedMs(crmStartedAt),
+      failed: true,
+    });
+    logContactError(requestId, "CRM fetch error", error, {
+      url: `${env.crmApiBaseUrl}/leads`,
+      method: "POST",
+      payload,
+    });
+    throw error;
+  }
 };
 
 module.exports = {

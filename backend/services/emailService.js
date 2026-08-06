@@ -1,5 +1,10 @@
 const { env } = require("../config/env");
 const { sendMail } = require("../config/mail");
+const {
+  getElapsedMs,
+  logContactError,
+  logContactInfo,
+} = require("../utils/contactDiagnostics");
 
 const escapeHtml = (value = "") =>
   String(value)
@@ -69,8 +74,38 @@ const buildCustomerAutoReplyHtml = (contact) => `
   </div>
 `;
 
-const sendContactEmails = async (contact) => {
-  const adminEmail = sendMail({
+const sendLoggedContactEmail = async (requestId, label, mailOptions) => {
+  const startedAt = Date.now();
+
+  logContactInfo(requestId, `${label} email start`, {
+    to: mailOptions.to,
+    subject: mailOptions.subject,
+  });
+
+  try {
+    const result = await sendMail(mailOptions);
+
+    logContactInfo(requestId, `${label} email success`, {
+      duration: getElapsedMs(startedAt),
+      messageId: result?.messageId,
+      response: result?.response,
+    });
+
+    return result;
+  } catch (error) {
+    logContactError(requestId, `${label} email failure`, error, {
+      duration: getElapsedMs(startedAt),
+      to: mailOptions.to,
+      subject: mailOptions.subject,
+    });
+    throw error;
+  }
+};
+
+const sendContactEmails = async (contact, options = {}) => {
+  const requestId = options.requestId || "unknown";
+
+  const adminEmail = sendLoggedContactEmail(requestId, "Admin", {
     to: env.adminEmail,
     replyTo: `"${contact.fullName}" <${contact.email}>`,
     subject: "New Vconstech ERP Demo Request - Website Demo",
@@ -88,7 +123,7 @@ const sendContactEmails = async (contact) => {
     ].join("\n"),
   });
 
-  const customerEmail = sendMail({
+  const customerEmail = sendLoggedContactEmail(requestId, "Customer", {
     to: `"${contact.fullName}" <${contact.email}>`,
     subject: "Demo Request Received - Vconstech ERP",
     html: buildCustomerAutoReplyHtml(contact),
