@@ -1,5 +1,5 @@
 const { env } = require("../config/env");
-const { getSmtpFailurePoint, sendMail, verifyTransporter } = require("../config/mail");
+const { sendEmail } = require("./brevoEmailService");
 const {
   getElapsedMs,
   logContactError,
@@ -82,43 +82,56 @@ const sendLoggedContactEmail = async (requestId, label, mailOptions) => {
     subject: mailOptions.subject,
   });
 
+  let result;
+
   try {
-    const result = await sendMail(mailOptions);
-
-    logContactInfo(requestId, `${label} email completed`, {
-      duration: getElapsedMs(startedAt),
-      messageId: result?.messageId,
-      response: result?.response,
-    });
-
-    return result;
+    result = await sendEmail(mailOptions);
   } catch (error) {
     logContactError(requestId, `${label} email failed`, error, {
       duration: getElapsedMs(startedAt),
       failurePoint: label === "Customer" ? "Customer Email" : "Admin Email",
-      smtpFailurePoint: getSmtpFailurePoint(error),
       to: mailOptions.to,
       subject: mailOptions.subject,
     });
-    throw error;
+
+    return {
+      ok: false,
+      status: null,
+      body: null,
+      error: error?.message,
+    };
   }
+
+  if (result.ok) {
+    logContactInfo(requestId, `${label} email completed`, {
+      duration: getElapsedMs(startedAt),
+      messageId: result?.messageId,
+      response: result?.response,
+      status: result?.status,
+    });
+
+    return result;
+  }
+
+  const error = new Error(result.error || "Brevo API email failed.");
+
+  logContactError(requestId, `${label} email failed`, error, {
+    duration: getElapsedMs(startedAt),
+    failurePoint: label === "Customer" ? "Customer Email" : "Admin Email",
+    httpStatus: result.status,
+    responseBody: result.body,
+    to: mailOptions.to,
+    subject: mailOptions.subject,
+  });
+
+  return result;
 };
 
 const sendContactEmails = async (contact, options = {}) => {
   const requestId = options.requestId || "unknown";
   const startedAt = Date.now();
 
-  try {
-    await verifyTransporter();
-  } catch (error) {
-    logContactError(requestId, "SMTP connection verification failed before sending contact emails", error, {
-      duration: getElapsedMs(startedAt),
-      failurePoint: getSmtpFailurePoint(error),
-    });
-    throw error;
-  }
-
-  const customerEmail = sendLoggedContactEmail(requestId, "Customer", {
+  const customerEmail = await sendLoggedContactEmail(requestId, "Customer", {
     to: `"${contact.fullName}" <${contact.email}>`,
     subject: "Demo Request Received - Vconstech ERP",
     html: buildCustomerAutoReplyHtml(contact),
@@ -137,7 +150,7 @@ const sendContactEmails = async (contact, options = {}) => {
     ].join("\n"),
   });
 
-  const adminEmail = sendLoggedContactEmail(requestId, "Admin", {
+  const adminEmail = await sendLoggedContactEmail(requestId, "Admin", {
     to: env.adminEmail,
     replyTo: `"${contact.fullName}" <${contact.email}>`,
     subject: "New Vconstech ERP Demo Request - Website Demo",
@@ -155,20 +168,13 @@ const sendContactEmails = async (contact, options = {}) => {
     ].join("\n"),
   });
 
-  const results = await Promise.allSettled([customerEmail, adminEmail]);
-  const failed = results.find((result) => result.status === "rejected");
-
   logContactInfo(requestId, "Email sending duration", {
     duration: getElapsedMs(startedAt),
-    customerEmailStatus: results[0].status,
-    adminEmailStatus: results[1].status,
+    customerEmailStatus: customerEmail.ok ? "fulfilled" : "failed",
+    adminEmailStatus: adminEmail.ok ? "fulfilled" : "failed",
   });
 
-  if (failed) {
-    throw failed.reason;
-  }
-
-  return results.map((result) => result.value);
+  return [customerEmail, adminEmail];
 };
 
 module.exports = { sendContactEmails };

@@ -2,7 +2,7 @@
 
 Independent Node.js + Express backend for the Vconstech website contact, demo request, pricing plans, and payment flow.
 
-The frontend posts contact form data to this backend. The backend creates a lead through the existing CRM `POST /api/leads` endpoint first. Only after the CRM lead is created successfully, it sends both the admin notification and customer auto reply through the same reusable Nodemailer SMTP helper pattern used by the ERP backend, configured for Brevo SMTP.
+The frontend posts contact form data to this backend. The backend creates a lead through the existing CRM `POST /api/leads` endpoint first. Only after the CRM lead is created successfully, it returns the response and sends both the admin notification and customer auto reply through the Brevo Transactional Email API.
 
 The frontend also requests pricing plans from this backend. The backend proxies `GET /api/plans` to the CRM backend using `CRM_API_BASE_URL` and returns the CRM JSON response without changing its structure.
 
@@ -17,8 +17,7 @@ Razorpay order creation and payment verification run on this backend. After a va
 - Helmet
 - Morgan
 - Nodemon
-- Nodemailer
-- Brevo SMTP
+- Brevo Transactional Email API
 
 ## API Routes
 
@@ -54,11 +53,7 @@ CRM_API_BASE_URL=https://vconstech-crm-new.onrender.com/api
 RAZORPAY_KEY_ID=your_razorpay_key_id
 RAZORPAY_KEY_SECRET=your_razorpay_key_secret
 
-SMTP_HOST=smtp-relay.brevo.com
-SMTP_PORT=587
-SMTP_SECURE=false
-SMTP_USER=your_brevo_smtp_login
-SMTP_PASS=your_brevo_smtp_key
+BREVO_API_KEY=your_brevo_api_key
 SMTP_FROM_EMAIL=no-reply@vconstech.in
 SMTP_FROM_NAME=Vconstech ERP
 ADMIN_EMAIL=support@vconstech.in
