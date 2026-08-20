@@ -21,6 +21,7 @@ const createOrder = async (req, res, next) => {
       })
     );
   } catch (error) {
+    res.status(error.statusCode || 502);
     return next(error);
   }
 };

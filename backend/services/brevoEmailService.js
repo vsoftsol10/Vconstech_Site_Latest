@@ -35,6 +35,21 @@ const buildBrevoPayload = (options) => {
   return payload;
 };
 
+const getResponseHeaders = (headers) =>
+  Object.fromEntries(headers.entries());
+
+const getBrevoErrorMessage = (responseBody, fallback) => {
+  if (responseBody && typeof responseBody === "object") {
+    return responseBody.message || responseBody.error || fallback;
+  }
+
+  return responseBody || fallback;
+};
+
+const logBrevoInfo = (message, details) => {
+  console.log(`[brevo] ${message}`, details);
+};
+
 const logBrevoError = (message, details) => {
   console.error(`[brevo] ${message}`, details);
 };
@@ -56,13 +71,26 @@ const sendEmail = async (options) => {
   }
 
   try {
+    const payload = buildBrevoPayload(options);
+    const requestDetails = {
+      url: BREVO_EMAIL_URL,
+      method: "POST",
+      headers: {
+        "api-key": "[REDACTED]",
+        "Content-Type": "application/json",
+      },
+      body: payload,
+    };
+
+    logBrevoInfo("Brevo API request", requestDetails);
+
     const response = await fetch(BREVO_EMAIL_URL, {
       method: "POST",
       headers: {
         "api-key": process.env.BREVO_API_KEY,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(buildBrevoPayload(options)),
+      body: JSON.stringify(payload),
     });
 
     const responseText = await response.text();
@@ -74,21 +102,35 @@ const sendEmail = async (options) => {
       responseBody = responseText;
     }
 
+    const responseDetails = {
+      duration: `${Date.now() - startedAt} ms`,
+      status: response.status,
+      statusText: response.statusText,
+      headers: getResponseHeaders(response.headers),
+      body: responseBody,
+    };
+
+    logBrevoInfo("Brevo API response", responseDetails);
+
     if (!response.ok) {
+      const errorMessage = getBrevoErrorMessage(responseBody, response.statusText);
+
       logBrevoError("Brevo API returned an error", {
         duration: `${Date.now() - startedAt} ms`,
         to: options.to,
         subject: options.subject,
         status: response.status,
+        headers: getResponseHeaders(response.headers),
         body: responseBody,
-        message: response.statusText,
+        errorBody: responseBody,
+        message: errorMessage,
       });
 
       return {
         ok: false,
         status: response.status,
         body: responseBody,
-        error: response.statusText,
+        error: errorMessage,
       };
     }
 

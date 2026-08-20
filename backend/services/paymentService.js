@@ -14,7 +14,9 @@ const isAdvancedPlan = (planName) => {
 
 const getRazorpayClient = () => {
   if (!env.razorpayKeyId || !env.razorpayKeySecret) {
-    throw new Error("Razorpay credentials are not configured");
+    const error = new Error("Payment gateway is not configured.");
+    error.statusCode = 503;
+    throw error;
   }
 
   return new Razorpay({
@@ -46,6 +48,23 @@ const calculatePayableAmount = (plan, customMembers) => {
   };
 };
 
+const normalizeRazorpayError = (error) => {
+  const gatewayError = error?.error || {};
+  const description = gatewayError.description || error?.message || "";
+  const statusCode = Number(error?.statusCode || error?.status || gatewayError.statusCode);
+  const isAuthError = statusCode === 401 || /authentication failed/i.test(description);
+
+  const normalized = new Error(
+    isAuthError
+      ? "Payment gateway authentication failed. Please check Razorpay key settings."
+      : gatewayError.description || "Unable to create payment order with the payment gateway."
+  );
+
+  normalized.statusCode = isAuthError ? 503 : 502;
+  normalized.cause = error;
+  return normalized;
+};
+
 const createPaymentOrder = async ({ planId, billingCycle, customer = {}, customMembers, purchaseFlow, pricingCustomer = {} }) => {
   const plans = await fetchPlansFromCrm();
   const plan = Array.isArray(plans) ? findPlanById(plans, planId) : null;
@@ -59,20 +78,26 @@ const createPaymentOrder = async ({ planId, billingCycle, customer = {}, customM
   const amount = calculatePayableAmount(plan, customMembers);
   const razorpay = getRazorpayClient();
 
-  const order = await razorpay.orders.create({
-    amount: amount.amountInPaise,
-    currency: "INR",
-    receipt: `vconstech_${Date.now()}`,
-    notes: {
-      planId: String(plan.id || ""),
-      planName: String(plan.name || ""),
-      billingCycle: String(billingCycle || plan.duration || ""),
-      purchaseFlow: String(purchaseFlow || ""),
-      customerName: String(customer.name || ""),
-      customerEmail: String(customer.email || ""),
-      customerPhone: String(customer.phone || ""),
-    },
-  });
+  let order;
+
+  try {
+    order = await razorpay.orders.create({
+      amount: amount.amountInPaise,
+      currency: "INR",
+      receipt: `vconstech_${Date.now()}`,
+      notes: {
+        planId: String(plan.id || ""),
+        planName: String(plan.name || ""),
+        billingCycle: String(billingCycle || plan.duration || ""),
+        purchaseFlow: String(purchaseFlow || ""),
+        customerName: String(customer.name || ""),
+        customerEmail: String(customer.email || ""),
+        customerPhone: String(customer.phone || ""),
+      },
+    });
+  } catch (error) {
+    throw normalizeRazorpayError(error);
+  }
 
   return {
     order,
