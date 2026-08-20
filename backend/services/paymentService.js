@@ -107,6 +107,7 @@ const createPaymentOrder = async ({ planId, billingCycle, customer = {}, customM
       duration: plan.duration || billingCycle || "",
     },
     amount,
+    razorpayKeyId: env.razorpayKeyId,
     customer,
     customMembers,
     purchaseFlow,

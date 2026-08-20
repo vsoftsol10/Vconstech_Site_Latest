@@ -18,6 +18,7 @@ const createOrder = async (req, res, next) => {
         order: result.order,
         plan: result.plan,
         amount: result.amount,
+        razorpayKeyId: result.razorpayKeyId,
       })
     );
   } catch (error) {

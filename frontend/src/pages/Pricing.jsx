@@ -4,7 +4,7 @@ import pricingHeroVideo from '../assets/pricing-hero.mp4';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 gsap.registerPlugin(ScrollTrigger);
-const RAZORPAY_KEY_ID = import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_live_SUcwPuBShurSZi';
+const RAZORPAY_KEY_ID = import.meta.env.VITE_RAZORPAY_KEY_ID || '';
 const ERP_API_BASE_URL = (
   import.meta.env.VITE_ERP_API_BASE_URL ||
   import.meta.env.VITE_API_BASE_URL ||
@@ -354,8 +354,14 @@ const CheckoutPanel = ({ plan, onClose, onCancel, pricingCustomer }) => {
       return;
     }
 
+    const razorpayKeyId = orderData?.data?.razorpayKeyId || RAZORPAY_KEY_ID;
+    if (!razorpayKeyId) {
+      alert('Payment gateway is not configured. Please try again later.');
+      return;
+    }
+
     const options = {
-      key: RAZORPAY_KEY_ID,
+      key: razorpayKeyId,
       amount: razorpayOrder?.amount,
       currency: 'INR',
       name: 'Vconstech',
