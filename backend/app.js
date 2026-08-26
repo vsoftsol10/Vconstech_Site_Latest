@@ -9,8 +9,8 @@ const { notFound } = require("./middleware/notFound");
 const { errorHandler } = require("./middleware/errorHandler");
 
 const app = express();
-const allowedOrigins = String(env.corsOrigin || "")
-  .split(",")
+const allowedOrigins = [env.corsOrigin, env.websiteUrl, "http://localhost:5173"]
+  .flatMap((value) => String(value || "").split(","))
   .map((origin) => origin.trim())
   .filter(Boolean);
 
