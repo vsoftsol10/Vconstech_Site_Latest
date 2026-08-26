@@ -64,7 +64,11 @@ const formatPlanPrice = (plan) => {
     return null;
   }
 
-  const numeric = Number(String(plan?.price ?? '').replace(/[^0-9.]/g, ''));
+  const priceText = String(plan?.price ?? '').trim();
+  const numericText = priceText.replace(/[^0-9.]/g, '');
+  if (!numericText) return priceText || null;
+
+  const numeric = Number(numericText);
   if (!Number.isFinite(numeric)) return plan?.price ? String(plan.price) : null;
 
   return `₹${numeric.toLocaleString('en-IN')}`;
