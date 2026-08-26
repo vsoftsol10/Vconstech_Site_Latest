@@ -46,7 +46,7 @@ Create `.env` from `.env.example`:
 ```text
 NODE_ENV=development
 PORT=5000
-CORS_ORIGIN=http://localhost:5173
+CORS_ORIGIN=https://vconstech.in,https://test1.vconstech.in,http://localhost:5173
 WEBSITE_URL=https://vconstech.in
 CRM_API_BASE_URL=https://vconstech-crm-new.onrender.com/api
 SUPABASE_DB_URL=postgresql://postgres:password@db.your-project.supabase.co:5432/postgres
@@ -93,7 +93,7 @@ curl -X POST http://localhost:5000/api/contact ^
 3. Set build command: `npm install`
 4. Set start command: `npm start`
 5. Add all required environment variables from `.env.example`.
-6. Set `CORS_ORIGIN` to the deployed website URL.
+6. Set `CORS_ORIGIN` to the deployed website URL. Use comma-separated values when more than one domain should access the API.
 7. Deploy.
 8. Verify `https://your-render-service.onrender.com/api/health`.
 
