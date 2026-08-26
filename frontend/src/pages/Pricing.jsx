@@ -154,6 +154,72 @@ const toWebsitePlan = (plan) => {
   };
 };
 
+const DEFAULT_PRICING_PLANS = sortPricingPlans([
+  {
+    id: 'trial',
+    name: 'Free Trial',
+    price: 0,
+    duration: '7 days',
+    description: 'Explore Vconstech ERP with the essential tools to evaluate your workflow.',
+    features: [
+      { feature_name: 'Project dashboard' },
+      { feature_name: 'Lead and customer management' },
+      { feature_name: 'Basic reports' },
+      { feature_name: 'Email support' },
+    ],
+  },
+  {
+    id: 'basic',
+    name: 'Basic',
+    price: 999,
+    duration: '/ month',
+    description: 'Simple construction ERP tools for small teams getting organized.',
+    features: [
+      { feature_name: 'Project management' },
+      { feature_name: 'Customer and lead tracking' },
+      { feature_name: 'Billing management' },
+      { feature_name: 'Standard reports' },
+    ],
+  },
+  {
+    id: 'premium',
+    name: 'Premium',
+    price: 1999,
+    duration: '/ month',
+    description: 'A complete plan for growing teams that need stronger operational control.',
+    features: [
+      { feature_name: 'Everything in Basic' },
+      { feature_name: 'Cost estimation' },
+      { feature_name: 'Material management' },
+      { feature_name: 'Advanced reports and analytics' },
+    ],
+  },
+  {
+    id: 'advanced',
+    name: 'Advanced',
+    price: 0,
+    duration: '',
+    description: 'Custom ERP support for larger teams with advanced project needs.',
+    features: [
+      { feature_name: 'Everything in Premium' },
+      { feature_name: 'Advanced project management' },
+      { feature_name: 'Custom member pricing' },
+      { feature_name: 'Priority implementation support' },
+    ],
+  },
+].map(toWebsitePlan));
+
+const fetchPricingPlans = async () => {
+  const response = await fetch(`${WEBSITE_API_BASE_URL}/plans`);
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || data.error || 'Failed to load plans');
+  }
+
+  return Array.isArray(data) ? data : [];
+};
+
 const loadRazorpayScript = () => {
   return new Promise((resolve) => {
     if (document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]')) {
@@ -876,6 +942,7 @@ const CheckoutPanel = ({ plan, onClose, onCancel, pricingCustomer }) => {
 
 const Pricing = () => {
   const rootRef = useRef(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const ctx = gsap.context(() => {
@@ -907,13 +974,11 @@ const Pricing = () => {
 
 
   const [checkoutPlan, setCheckoutPlan] = useState(null);
-  const [freeTrialOpen, setFreeTrialOpen] = useState(false);
   const [expandedDropdowns, setExpandedDropdowns] = useState({});
   const [pricingCustomer, setPricingCustomer] = useState(null);
   const [pricingMessage, setPricingMessage] = useState('');
   const [cancelledPlan, setCancelledPlan] = useState(null);
-  const [plans, setPlans] = useState([]);
-  const [plansLoading, setPlansLoading] = useState(true);
+  const [plans, setPlans] = useState(DEFAULT_PRICING_PLANS);
   const [plansError, setPlansError] = useState('');
 
   useEffect(() => {
@@ -948,32 +1013,22 @@ const Pricing = () => {
     let ignore = false;
 
     const fetchPlans = async () => {
-      setPlansLoading(true);
       setPlansError('');
 
       try {
-        const response = await fetch(`${WEBSITE_API_BASE_URL}/plans`);
-        const data = await response.json();
+        const data = await fetchPricingPlans();
+        const nextPlans = Array.isArray(data)
+          ? sortPricingPlans(data.filter(isPlanVisible).map(toWebsitePlan))
+          : [];
 
-        if (!response.ok) {
-          throw new Error(data.message || data.error || 'Failed to load plans');
-        }
-
-        if (!ignore) {
-          setPlans(
-            Array.isArray(data)
-              ? sortPricingPlans(data.filter(isPlanVisible).map(toWebsitePlan))
-              : []
-          );
+        if (!ignore && nextPlans.length > 0) {
+          setPlans(nextPlans);
         }
       } catch (error) {
-        console.error('Failed to fetch CRM plans:', error);
+        console.error('Failed to fetch pricing plans:', error);
         if (!ignore) {
-          setPlans([]);
-          setPlansError('Plans are temporarily unavailable. Please try again later.');
+          setPlansError('Live pricing is temporarily unavailable. Showing our standard plans.');
         }
-      } finally {
-        if (!ignore) setPlansLoading(false);
       }
     };
 
@@ -1019,6 +1074,10 @@ const Pricing = () => {
     setCheckoutPlan(plan);
   };
 
+  const handleTryNow = () => {
+    navigate('/contact');
+  };
+
   const handlePaymentCancel = (plan) => {
     setCheckoutPlan(null);
     setCancelledPlan(plan);
@@ -1027,11 +1086,6 @@ const Pricing = () => {
 
   return (
     <div className="min-h-screen">
-
-      {freeTrialOpen && (
-        <FreeTrialPanel onClose={() => setFreeTrialOpen(false)} />
-      )}
-
       {checkoutPlan && (
         <CheckoutPanel
           plan={checkoutPlan}
@@ -1043,7 +1097,7 @@ const Pricing = () => {
 
       {/* Hero Section */}
       <section className="relative text-white py-20 overflow-hidden">
-        <video className="absolute inset-0 w-full h-full object-cover z-0" autoPlay muted loop playsInline>
+        <video className="absolute inset-0 w-full h-full object-cover z-0" autoPlay muted loop playsInline preload="metadata">
           <source src={pricingHeroVideo} type="video/mp4" />
           Your browser does not support the video tag.
         </video>
@@ -1076,17 +1130,12 @@ const Pricing = () => {
               )}
             </div>
           )}
-          {plansLoading && (
-            <div className="rounded-lg border border-gray-200 bg-white px-4 py-6 text-center text-gray-600">
-              Loading subscription plans...
-            </div>
-          )}
-          {!plansLoading && plansError && (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-6 text-center text-red-700">
+          {plansError && (
+            <div className="mb-6 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
               {plansError}
             </div>
           )}
-          {!plansLoading && !plansError && plans.length === 0 && (
+          {!plansError && plans.length === 0 && (
             <div className="rounded-lg border border-gray-200 bg-white px-4 py-6 text-center text-gray-600">
               No subscription plans are currently available.
             </div>
@@ -1169,7 +1218,7 @@ const Pricing = () => {
                     ) : isTrialPlan(plan.name) ? (
                       <>
                         <button
-                          onClick={() => setFreeTrialOpen(true)}
+                          onClick={handleTryNow}
                           className="flex-1 text-center py-3 px-4 rounded-md font-semibold transition-colors duration-200 bg-[#ffbe01] text-black hover:bg-yellow-400"
                         >
                           Try Now

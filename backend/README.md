@@ -49,6 +49,9 @@ PORT=5000
 CORS_ORIGIN=http://localhost:5173
 WEBSITE_URL=https://vconstech.in
 CRM_API_BASE_URL=https://vconstech-crm-new.onrender.com/api
+SUPABASE_DB_URL=postgresql://postgres:password@db.your-project.supabase.co:5432/postgres
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your_backend_only_service_role_key
 
 RAZORPAY_KEY_ID=your_razorpay_key_id
 RAZORPAY_KEY_SECRET=your_razorpay_key_secret

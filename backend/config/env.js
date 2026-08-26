@@ -7,6 +7,9 @@ const env = {
   adminEmail: process.env.ADMIN_EMAIL || "support@vconstech.in",
   websiteUrl: process.env.WEBSITE_URL || "https://vconstech.in",
   crmApiBaseUrl: (process.env.CRM_API_BASE_URL || "").replace(/\/$/, ""),
+  supabaseUrl: (process.env.SUPABASE_URL || "").replace(/\/$/, ""),
+  supabaseDbUrl: process.env.SUPABASE_DB_URL || "",
+  supabaseKey: process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || "",
   razorpayKeyId: process.env.RAZORPAY_KEY_ID,
   razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET,
 };
