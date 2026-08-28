@@ -460,6 +460,7 @@ const CheckoutPanel = ({ plan, onClose, onCancel, pricingCustomer }) => {
           const params = new URLSearchParams({
             ...purchaseData,
             paymentId: response?.razorpay_payment_id || '',
+            activated: String(verifyData?.data?.activated !== false),
           });
           navigate(`/payment-success?${params.toString()}`);
         } catch (error) {

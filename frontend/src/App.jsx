@@ -11,6 +11,7 @@ import Contact from './pages/Contact';
 import ProjectManagement from './pages/ProjectManagement';
 import WeSupport from './pages/WeSupport';
 import InvitationRegistration from './pages/InvitationRegistration';
+import PaymentResult from './pages/PaymentResult';
 
 
 function App() {
@@ -30,6 +31,8 @@ function App() {
             <Route path="/we-support" element={<WeSupport />} />
             <Route path="/registration/invitations/:invitationId" element={<InvitationRegistration />} />
             <Route path="/invitations/:invitationId" element={<InvitationRegistration />} />
+            <Route path="/payment-success" element={<PaymentResult type="success" />} />
+            <Route path="/payment-failed" element={<PaymentResult type="failed" />} />
 
           </Routes>
         </main>

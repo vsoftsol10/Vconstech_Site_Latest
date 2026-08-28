@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
 const ERP_LOGIN_URL = import.meta.env.VITE_ERP_LOGIN_URL || 'http://localhost:5173';
@@ -17,16 +16,19 @@ const getParams = (search) => {
     name: params.get('name') || '',
     companyName: params.get('companyName') || '',
     email: params.get('email') || '',
-    phone: params.get('phone') || ''
+    phone: params.get('phone') || '',
+    activated: params.get('activated') !== 'false'
   };
 };
 
 const PaymentResult = ({ type }) => {
   const { search } = useLocation();
   const params = getParams(search);
-  const { plan, paymentId, returnTo } = params;
+  const { plan, paymentId, returnTo, activated } = params;
   const isSuccess = type === 'success';
-  const [activationStatus] = useState(isSuccess ? 'ERP account is ready. Login details have been sent to your email.' : '');
+  const activationStatus = activated
+    ? 'ERP account is ready. Login details have been sent to your email.'
+    : 'Payment received. ERP activation is still syncing and our team will complete it shortly.';
 
   return (
     <section className="min-h-[70vh] bg-gray-50 flex items-center justify-center px-4 py-16">
