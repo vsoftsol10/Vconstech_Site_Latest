@@ -13,6 +13,7 @@ const env = {
   supabaseKey: process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || "",
   razorpayKeyId: process.env.RAZORPAY_KEY_ID,
   razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET,
+  crmRequestTimeoutMs: Number(process.env.CRM_REQUEST_TIMEOUT_MS || 20000),
 };
 
 module.exports = { env };

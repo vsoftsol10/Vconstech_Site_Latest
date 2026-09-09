@@ -199,23 +199,44 @@ const activateCrmPurchase = async ({ paymentId, purchaseData = {} }) => {
     throw new Error("CRM API base URL is not configured");
   }
 
-  const response = await fetch(`${env.crmApiBaseUrl}/subscription-sync/pricing/purchase-success`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      purchaseFlow: purchaseData.purchaseFlow,
-      userId: purchaseData.userId,
-      customerId: purchaseData.customerId,
-      crmCustomerId: purchaseData.crmCustomerId,
-      erpCustomerId: purchaseData.erpCustomerId,
-      name: purchaseData.name,
-      companyName: purchaseData.companyName,
-      email: purchaseData.email,
-      phone: purchaseData.phone,
-      plan: purchaseData.plan,
-      paymentId,
-    }),
-  });
+  const controller = new AbortController();
+  const timeoutMs = Number.isFinite(env.crmRequestTimeoutMs) && env.crmRequestTimeoutMs > 0
+    ? env.crmRequestTimeoutMs
+    : 20000;
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  let response;
+
+  try {
+    response = await fetch(`${env.crmApiBaseUrl}/subscription-sync/pricing/purchase-success`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        purchaseFlow: purchaseData.purchaseFlow,
+        userId: purchaseData.userId,
+        customerId: purchaseData.customerId,
+        crmCustomerId: purchaseData.crmCustomerId,
+        erpCustomerId: purchaseData.erpCustomerId,
+        name: purchaseData.name,
+        companyName: purchaseData.companyName,
+        email: purchaseData.email,
+        phone: purchaseData.phone,
+        plan: purchaseData.plan,
+        paymentId,
+      }),
+    });
+  } catch (error) {
+    if (error.name === "AbortError") {
+      const timeoutError = new Error("CRM purchase activation timed out");
+      timeoutError.statusCode = 504;
+      throw timeoutError;
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 
   const data = await response.json().catch(() => ({}));
 
@@ -235,15 +256,26 @@ const verifyAndActivatePayment = async (payload) => {
     throw error;
   }
 
-  const crmResponse = await activateCrmPurchase({
-    paymentId: payload.razorpay_payment_id,
-    purchaseData: payload.purchaseData,
-  });
+  try {
+    const crmResponse = await activateCrmPurchase({
+      paymentId: payload.razorpay_payment_id,
+      purchaseData: payload.purchaseData,
+    });
 
-  return {
-    verified: true,
-    crmResponse,
-  };
+    return {
+      verified: true,
+      activated: true,
+      crmResponse,
+    };
+  } catch (error) {
+    console.error("Payment verified but CRM purchase activation failed:", error);
+
+    return {
+      verified: true,
+      activated: false,
+      activationError: error.message || "CRM purchase activation failed",
+    };
+  }
 };
 
 module.exports = {

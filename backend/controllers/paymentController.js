@@ -55,6 +55,8 @@ const verifyPayment = async (req, res, next) => {
     return res.status(200).json(
       successResponse("Payment verified successfully", {
         verified: result.verified,
+        activated: result.activated,
+        activationError: result.activationError,
       })
     );
   } catch (error) {
