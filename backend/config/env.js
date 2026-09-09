@@ -7,6 +7,7 @@ const env = {
   adminEmail: process.env.ADMIN_EMAIL || "support@vconstech.in",
   websiteUrl: process.env.WEBSITE_URL || "https://vconstech.in",
   crmApiBaseUrl: (process.env.CRM_API_BASE_URL || "").replace(/\/$/, ""),
+  duplicateRegistrationApiBaseUrl: (process.env.DUPLICATE_REGISTRATION_API_BASE_URL || process.env.CRM_API_BASE_URL || "").replace(/\/$/, ""),
   crmDuplicateRegistrationPath: process.env.CRM_DUPLICATE_REGISTRATION_PATH || "/subscription-sync/pricing/customer",
   supabaseUrl: (process.env.SUPABASE_URL || "").replace(/\/$/, ""),
   supabaseDbUrl: process.env.SUPABASE_DB_URL || "",

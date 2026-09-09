@@ -383,25 +383,43 @@ const CheckoutPanel = ({ plan, onClose, onCancel, pricingCustomer }) => {
     };
 
     try {
-      const duplicateResponse = await fetch(`${WEBSITE_API_BASE_URL}/payment/check-duplicate-registration`, {
+      const duplicateCheckPayload = {
+        customer: {
+          email: form.email,
+          companyName: form.companyName,
+        },
+        pricingCustomer: {
+          userId: pricingCustomer?.userId || '',
+          customerId: pricingCustomer?.crmCustomerId || pricingCustomer?.erpCustomerId || '',
+          crmCustomerId: pricingCustomer?.crmCustomerId || '',
+          erpCustomerId: pricingCustomer?.erpCustomerId || '',
+        },
+      };
+      const duplicateCheckUrl = `${WEBSITE_API_BASE_URL}/payment/check-duplicate-registration`;
+
+      console.info('[Checkout] Duplicate registration check request', {
+        url: duplicateCheckUrl,
+        payload: duplicateCheckPayload,
+      });
+
+      const duplicateResponse = await fetch(duplicateCheckUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          customer: {
-            email: form.email,
-            companyName: form.companyName,
-          },
-          pricingCustomer: {
-            userId: pricingCustomer?.userId || '',
-            customerId: pricingCustomer?.crmCustomerId || pricingCustomer?.erpCustomerId || '',
-            crmCustomerId: pricingCustomer?.crmCustomerId || '',
-            erpCustomerId: pricingCustomer?.erpCustomerId || '',
-          },
-        }),
+        body: JSON.stringify(duplicateCheckPayload),
       });
       const duplicateData = await duplicateResponse.json().catch(() => ({}));
 
-      if (!duplicateResponse.ok || duplicateData?.data?.duplicate) {
+      console.info('[Checkout] Duplicate registration check response', {
+        status: duplicateResponse.status,
+        ok: duplicateResponse.ok,
+        body: duplicateData,
+      });
+
+      if (duplicateResponse.status === 409 || duplicateData?.data?.duplicate) {
+        throw new Error(duplicateData.message || 'You are already an active customer.');
+      }
+
+      if (!duplicateResponse.ok) {
         throw new Error(duplicateData.message || 'Unable to validate existing registration.');
       }
 

@@ -36,8 +36,8 @@ const findDuplicateRegistration = async ({ customer = {}, pricingCustomer = {} }
     throw error;
   }
 
-  if (!env.crmApiBaseUrl) {
-    const error = new Error("CRM API base URL is not configured");
+  if (!env.duplicateRegistrationApiBaseUrl) {
+    const error = new Error("Duplicate registration API base URL is not configured");
     error.statusCode = 502;
     throw error;
   }
@@ -51,15 +51,40 @@ const findDuplicateRegistration = async ({ customer = {}, pricingCustomer = {} }
     userId: pricingCustomer.userId || "",
   });
 
-  const response = await fetch(`${env.crmApiBaseUrl}${env.crmDuplicateRegistrationPath}?${query.toString()}`);
-
-  // A missing customer is the expected "not registered" result.
-  if (response.status === 404) return { duplicate: false };
+  const lookupUrl = `${env.duplicateRegistrationApiBaseUrl}${env.crmDuplicateRegistrationPath}?${query.toString()}`;
+  const response = await fetch(lookupUrl);
 
   const data = await response.json().catch(() => ({}));
+  console.info("[Payment] Duplicate registration CRM response", {
+    lookupUrl: lookupUrl.replace(/([?&]email=)[^&]*/i, "$1[redacted]"),
+    status: response.status,
+    ok: response.ok,
+    requestedEmail: email,
+    requestedCompanyName: companyName,
+    crmResponse: data,
+  });
+
+  const routeIsMissing = response.status === 404 && /api route not found|cannot get/i.test(
+    String(data?.error || data?.message || data || "")
+  );
+
+  // A missing customer is valid; the caller may continue with payment.
+  if (response.status === 404 && !routeIsMissing) {
+    console.info("[Payment] Duplicate registration comparison", {
+      requestedEmail: email,
+      requestedCompanyName: companyName,
+      existingEmail: "",
+      existingCompanyName: "",
+      duplicate: false,
+    });
+    return { duplicate: false };
+  }
+
   if (!response.ok) {
+    // A missing *customer* is valid. A missing lookup route/configuration is not:
+    // block checkout rather than treating an unavailable validation service as available.
     const error = new Error(data?.message || data?.error || "Unable to validate existing registration.");
-    error.statusCode = 502;
+    error.statusCode = routeIsMissing ? 502 : response.status;
     throw error;
   }
 
@@ -67,6 +92,14 @@ const findDuplicateRegistration = async ({ customer = {}, pricingCustomer = {} }
   const existingEmail = normalizeRegistrationValue(existingCustomer?.email);
   const existingCompany = normalizeRegistrationValue(existingCustomer?.companyName || existingCustomer?.company);
   const duplicate = existingEmail === email && existingCompany === companyName;
+
+  console.info("[Payment] Duplicate registration comparison", {
+    requestedEmail: email,
+    requestedCompanyName: companyName,
+    existingEmail,
+    existingCompanyName: existingCompany,
+    duplicate,
+  });
 
   return { duplicate, existingCustomer: duplicate ? existingCustomer : null };
 };
