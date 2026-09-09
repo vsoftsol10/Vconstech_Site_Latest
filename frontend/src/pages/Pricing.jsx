@@ -275,6 +275,7 @@ const CheckoutPanel = ({ plan, onClose, onCancel, pricingCustomer }) => {
   const [coupon, setCoupon] = useState('');
   const [showCouponInput, setShowCouponInput] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const [form, setForm] = useState({
     name: '',
@@ -344,25 +345,26 @@ const CheckoutPanel = ({ plan, onClose, onCancel, pricingCustomer }) => {
   };
 
   const handlePayment = async () => {
-    if (!plan) return;
+    if (!plan || isProcessing) return;
+
+    setIsProcessing(true);
 
     if (hasActiveSelectedPlan(pricingCustomer, plan.name)) {
       setFormErrors({
         form: `Your ${plan.name} subscription is already active. Please choose a different plan.`
       });
+      setIsProcessing(false);
       return;
     }
 
-    if (!validateForm()) return;
+    if (!validateForm()) {
+      setIsProcessing(false);
+      return;
+    }
 
     if (paymentMethod === 'upi' && !upiId.trim()) {
-      alert('Please enter your UPI ID to continue.');
-      return;
-    }
-
-    const scriptLoaded = await loadRazorpayScript();
-    if (!scriptLoaded || !window.Razorpay) {
-      alert('Unable to load payment gateway. Please check your connection and try again.');
+      setFormErrors({ payment: 'Please enter your UPI ID to continue.' });
+      setIsProcessing(false);
       return;
     }
 
@@ -380,9 +382,34 @@ const CheckoutPanel = ({ plan, onClose, onCancel, pricingCustomer }) => {
       plan: plan.name,
     };
 
-    let orderData;
-
     try {
+      const duplicateResponse = await fetch(`${WEBSITE_API_BASE_URL}/payment/check-duplicate-registration`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customer: {
+            email: form.email,
+            companyName: form.companyName,
+          },
+          pricingCustomer: {
+            userId: pricingCustomer?.userId || '',
+            customerId: pricingCustomer?.crmCustomerId || pricingCustomer?.erpCustomerId || '',
+            crmCustomerId: pricingCustomer?.crmCustomerId || '',
+            erpCustomerId: pricingCustomer?.erpCustomerId || '',
+          },
+        }),
+      });
+      const duplicateData = await duplicateResponse.json().catch(() => ({}));
+
+      if (!duplicateResponse.ok || duplicateData?.data?.duplicate) {
+        throw new Error(duplicateData.message || 'Unable to validate existing registration.');
+      }
+
+      const scriptLoaded = await loadRazorpayScript();
+      if (!scriptLoaded || !window.Razorpay) {
+        throw new Error('Unable to load payment gateway. Please check your connection and try again.');
+      }
+
       const orderResponse = await fetch(`${WEBSITE_API_BASE_URL}/payment/create-order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -407,28 +434,20 @@ const CheckoutPanel = ({ plan, onClose, onCancel, pricingCustomer }) => {
         })
       });
 
-      orderData = await orderResponse.json().catch(() => ({}));
+      const orderData = await orderResponse.json().catch(() => ({}));
 
       if (!orderResponse.ok || orderData.success === false) {
         throw new Error(orderData.message || 'Unable to create payment order.');
       }
-    } catch (error) {
-      console.error('Razorpay order creation failed:', error);
-      alert(error?.message || 'Unable to create payment order. Please try again.');
-      return;
-    }
+      const razorpayOrder = orderData?.data?.order;
+      if (!razorpayOrder?.id || !razorpayOrder?.amount) {
+        throw new Error('Unable to create payment order. Please try again.');
+      }
 
-    const razorpayOrder = orderData?.data?.order;
-    if (!razorpayOrder?.id || !razorpayOrder?.amount) {
-      alert('Unable to create payment order. Please try again.');
-      return;
-    }
-
-    const razorpayKeyId = orderData?.data?.razorpayKeyId || RAZORPAY_KEY_ID;
-    if (!razorpayKeyId) {
-      alert('Payment gateway is not configured. Please try again later.');
-      return;
-    }
+      const razorpayKeyId = orderData?.data?.razorpayKeyId || RAZORPAY_KEY_ID;
+      if (!razorpayKeyId) {
+        throw new Error('Payment gateway is not configured. Please try again later.');
+      }
 
     const options = {
       key: razorpayKeyId,
@@ -461,9 +480,11 @@ const CheckoutPanel = ({ plan, onClose, onCancel, pricingCustomer }) => {
             ...purchaseData,
             paymentId: response?.razorpay_payment_id || '',
           });
+          setIsProcessing(false);
           navigate(`/payment-success?${params.toString()}`);
         } catch (error) {
           console.error('Payment verification failed:', error);
+          setIsProcessing(false);
           const params = new URLSearchParams({
             plan: plan.name,
             returnTo: `${window.location.pathname}${window.location.search}`
@@ -494,6 +515,7 @@ const CheckoutPanel = ({ plan, onClose, onCancel, pricingCustomer }) => {
       theme: { color: '#ffbe01' },
       modal: {
         ondismiss: function () {
+          setIsProcessing(false);
           onCancel?.(plan);
         }
       }
@@ -502,6 +524,7 @@ const CheckoutPanel = ({ plan, onClose, onCancel, pricingCustomer }) => {
     const razorpay = new window.Razorpay(options);
     razorpay.on('payment.failed', function (response) {
       console.error('Razorpay payment failed:', response);
+      setIsProcessing(false);
       const params = new URLSearchParams({
         plan: plan.name,
         returnTo: `${window.location.pathname}${window.location.search}`
@@ -509,6 +532,11 @@ const CheckoutPanel = ({ plan, onClose, onCancel, pricingCustomer }) => {
       navigate(`/payment-failed?${params.toString()}`);
     });
     razorpay.open();
+    } catch (error) {
+      console.error('Payment processing failed:', error);
+      setFormErrors({ payment: error?.message || 'Unable to process payment. Please try again.' });
+      setIsProcessing(false);
+    }
   };
 
   return (
@@ -611,6 +639,7 @@ const CheckoutPanel = ({ plan, onClose, onCancel, pricingCustomer }) => {
           </div>
           <button
             onClick={onClose}
+            disabled={isProcessing}
             className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors flex-shrink-0"
           >
             <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -814,6 +843,12 @@ const CheckoutPanel = ({ plan, onClose, onCancel, pricingCustomer }) => {
               </div>
             )}
 
+            {formErrors.payment && (
+              <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600" role="alert">
+                {formErrors.payment}
+              </p>
+            )}
+
             {paymentMethod === 'card' && (
               <div className="mt-3 space-y-2">
                 <input
@@ -933,10 +968,15 @@ const CheckoutPanel = ({ plan, onClose, onCancel, pricingCustomer }) => {
           </button>
           <button
             onClick={handlePayment}
-            disabled={isAdvancedPlan(plan.name) && priceNum === 0}
+            disabled={isProcessing || (isAdvancedPlan(plan.name) && priceNum === 0)}
             className="flex-1 py-3 rounded-xl bg-[#ffbe01] text-black font-semibold text-sm hover:bg-yellow-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Complete Payment
+            {isProcessing ? (
+              <span className="inline-flex items-center justify-center gap-2">
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-black/30 border-t-black" aria-hidden="true" />
+                Processing...
+              </span>
+            ) : 'Complete Payment'}
           </button>
         </div>
       </div>

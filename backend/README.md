@@ -26,6 +26,7 @@ GET  /api/health
 POST /api/contact
 GET  /api/plans
 POST /api/payment/create-order
+POST /api/payment/check-duplicate-registration
 POST /api/payment/verify
 POST /api/demo
 POST /api/payment
@@ -55,6 +56,7 @@ SUPABASE_SERVICE_ROLE_KEY=your_backend_only_service_role_key
 
 RAZORPAY_KEY_ID=your_razorpay_key_id
 RAZORPAY_KEY_SECRET=your_razorpay_key_secret
+CRM_DUPLICATE_REGISTRATION_PATH=/subscription-sync/pricing/customer
 
 BREVO_API_KEY=your_brevo_api_key
 SMTP_FROM_EMAIL=no-reply@vconstech.in

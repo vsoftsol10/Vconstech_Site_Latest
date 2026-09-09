@@ -1,5 +1,5 @@
 const { successResponse } = require("../utils/apiResponse");
-const { createPaymentOrder, verifyAndActivatePayment } = require("../services/paymentService");
+const { createPaymentOrder, findDuplicateRegistration, verifyAndActivatePayment } = require("../services/paymentService");
 
 const submitPayment = (req, res) => {
   return res.status(200).json(
@@ -27,6 +27,27 @@ const createOrder = async (req, res, next) => {
   }
 };
 
+const checkDuplicateRegistration = async (req, res, next) => {
+  try {
+    const result = await findDuplicateRegistration(req.body);
+
+    if (result.duplicate) {
+      return res.status(409).json({
+        success: false,
+        message: "A user with this email and company is already registered.",
+        data: { duplicate: true },
+      });
+    }
+
+    return res.status(200).json(
+      successResponse("Registration is available", { duplicate: false })
+    );
+  } catch (error) {
+    res.status(error.statusCode || 502);
+    return next(error);
+  }
+};
+
 const verifyPayment = async (req, res, next) => {
   try {
     const result = await verifyAndActivatePayment(req.body);
@@ -42,4 +63,4 @@ const verifyPayment = async (req, res, next) => {
   }
 };
 
-module.exports = { submitPayment, createOrder, verifyPayment };
+module.exports = { submitPayment, createOrder, checkDuplicateRegistration, verifyPayment };

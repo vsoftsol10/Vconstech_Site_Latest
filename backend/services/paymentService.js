@@ -12,6 +12,65 @@ const isAdvancedPlan = (planName) => {
   return normalized.includes("advanced") || normalized === "advance" || normalized === "pro";
 };
 
+const normalizeRegistrationValue = (value) =>
+  String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
+
+const getCrmCustomer = (responseData) => {
+  if (Array.isArray(responseData)) return responseData[0] || null;
+
+  const data = responseData?.data ?? responseData;
+  if (Array.isArray(data)) return data[0] || null;
+
+  return data?.customer || data?.user || data || null;
+};
+
+// The CRM customer lookup is the source of truth for website registrations.
+// Keep this check server-side so callers cannot create an order by skipping the UI.
+const findDuplicateRegistration = async ({ customer = {}, pricingCustomer = {} }) => {
+  const email = normalizeRegistrationValue(customer.email);
+  const companyName = normalizeRegistrationValue(customer.companyName);
+
+  if (!email || !companyName) {
+    const error = new Error("Email and company name are required to validate registration.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!env.crmApiBaseUrl) {
+    const error = new Error("CRM API base URL is not configured");
+    error.statusCode = 502;
+    throw error;
+  }
+
+  const query = new URLSearchParams({
+    email,
+    companyName,
+    customerId: pricingCustomer.customerId || pricingCustomer.crmCustomerId || pricingCustomer.erpCustomerId || "",
+    crmCustomerId: pricingCustomer.crmCustomerId || "",
+    erpCustomerId: pricingCustomer.erpCustomerId || "",
+    userId: pricingCustomer.userId || "",
+  });
+
+  const response = await fetch(`${env.crmApiBaseUrl}${env.crmDuplicateRegistrationPath}?${query.toString()}`);
+
+  // A missing customer is the expected "not registered" result.
+  if (response.status === 404) return { duplicate: false };
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(data?.message || data?.error || "Unable to validate existing registration.");
+    error.statusCode = 502;
+    throw error;
+  }
+
+  const existingCustomer = getCrmCustomer(data);
+  const existingEmail = normalizeRegistrationValue(existingCustomer?.email);
+  const existingCompany = normalizeRegistrationValue(existingCustomer?.companyName || existingCustomer?.company);
+  const duplicate = existingEmail === email && existingCompany === companyName;
+
+  return { duplicate, existingCustomer: duplicate ? existingCustomer : null };
+};
+
 const getRazorpayClient = () => {
   if (!env.razorpayKeyId || !env.razorpayKeySecret) {
     const error = new Error("Payment gateway is not configured.");
@@ -66,6 +125,13 @@ const normalizeRazorpayError = (error) => {
 };
 
 const createPaymentOrder = async ({ planId, billingCycle, customer = {}, customMembers, purchaseFlow, pricingCustomer = {} }) => {
+  const registrationCheck = await findDuplicateRegistration({ customer, pricingCustomer });
+  if (registrationCheck.duplicate) {
+    const error = new Error("A user with this email and company is already registered.");
+    error.statusCode = 409;
+    throw error;
+  }
+
   const plans = await fetchPlansFromCrm();
   const plan = Array.isArray(plans) ? findPlanById(plans, planId) : null;
 
@@ -182,6 +248,7 @@ const verifyAndActivatePayment = async (payload) => {
 
 module.exports = {
   createPaymentOrder,
+  findDuplicateRegistration,
   verifyAndActivatePayment,
   calculatePayableAmount,
   verifyPaymentSignature,
