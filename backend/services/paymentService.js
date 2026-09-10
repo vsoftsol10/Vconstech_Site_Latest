@@ -15,6 +15,9 @@ const isAdvancedPlan = (planName) => {
 const normalizeRegistrationValue = (value) =>
   String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
 
+const hasActiveSubscription = (customer) =>
+  normalizeRegistrationValue(customer?.subscriptionStatus) === "subscription_active";
+
 const getCrmCustomer = (responseData) => {
   if (Array.isArray(responseData)) return responseData[0] || null;
 
@@ -101,13 +104,19 @@ const findDuplicateRegistration = async ({ customer = {}, pricingCustomer = {} }
   const existingCustomer = getCrmCustomer(data);
   const existingEmail = normalizeRegistrationValue(existingCustomer?.email);
   const existingCompany = normalizeRegistrationValue(existingCustomer?.companyName || existingCustomer?.company);
-  const duplicate = existingEmail === email && existingCompany === companyName;
+  const identityMatches = existingEmail === email && existingCompany === companyName;
+  const activeSubscription = hasActiveSubscription(existingCustomer);
+  const duplicate = identityMatches && activeSubscription;
 
   console.info("[Payment] Duplicate registration comparison", {
     requestedEmail: email,
     requestedCompanyName: companyName,
     existingEmail,
     existingCompanyName: existingCompany,
+    accountStatus: existingCustomer?.accountStatus ?? null,
+    subscriptionStatus: existingCustomer?.subscriptionStatus ?? null,
+    identityMatches,
+    activeSubscription,
     duplicate,
   });
 
