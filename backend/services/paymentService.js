@@ -3,6 +3,7 @@ const Razorpay = require("razorpay");
 
 const { env } = require("../config/env");
 const { fetchPlansFromCrm } = require("./plansService");
+const { sendEmail } = require("./brevoEmailService");
 
 const normalizePlanName = (value) =>
   String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
@@ -21,6 +22,81 @@ const hasActiveSubscription = (customer) =>
 const redactEmail = (value) => {
   const [localPart, domain] = String(value || "").split("@");
   return domain ? `${localPart.slice(0, 2)}***@${domain}` : "[redacted]";
+};
+
+const escapeHtml = (value = "") =>
+  String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+
+const formatPaymentAmount = (amount) => {
+  const numericAmount = Number(amount);
+  return Number.isFinite(numericAmount) && numericAmount > 0
+    ? `₹${numericAmount.toLocaleString("en-IN")}`
+    : "Not available";
+};
+
+const sendPaymentConfirmationEmail = async ({ paymentId, purchaseData = {}, activated }) => {
+  const recipient = String(purchaseData.email || "").trim();
+
+  if (!recipient) {
+    const error = "Customer email is missing; payment confirmation was not sent.";
+    console.error("[Payment] Confirmation email failed", { paymentId, recipient: "[missing]", error });
+    return { ok: false, error };
+  }
+
+  const plan = String(purchaseData.plan || "Subscription");
+  const amount = formatPaymentAmount(purchaseData.amount);
+  const customerName = String(purchaseData.name || "Customer");
+  const activationNote = activated
+    ? "Your subscription has been activated."
+    : "Your payment was received and is being finalized by our team.";
+
+  try {
+    const result = await sendEmail({
+      to: `"${customerName}" <${recipient}>`,
+      subject: "Payment Confirmation - Vconstech ERP",
+      html: `
+        <div style="font-family: Arial, sans-serif; color: #111827; line-height: 1.6;">
+          <h2>Payment received</h2>
+          <p>Thank you, ${escapeHtml(customerName)}. ${escapeHtml(activationNote)}</p>
+          <table style="border-collapse: collapse;">
+            <tr><td style="padding: 6px 12px 6px 0; font-weight: 700;">Plan</td><td style="padding: 6px 0;">${escapeHtml(plan)}</td></tr>
+            <tr><td style="padding: 6px 12px 6px 0; font-weight: 700;">Amount paid</td><td style="padding: 6px 0;">${escapeHtml(amount)}</td></tr>
+            <tr><td style="padding: 6px 12px 6px 0; font-weight: 700;">Payment ID</td><td style="padding: 6px 0;">${escapeHtml(paymentId)}</td></tr>
+          </table>
+        </div>`,
+      text: [
+        `Thank you, ${customerName}. ${activationNote}`,
+        `Plan: ${plan}`,
+        `Amount paid: ${amount}`,
+        `Payment ID: ${paymentId}`,
+      ].join("\n"),
+    });
+
+    console.info("[Payment] Confirmation email result", {
+      provider: "Brevo",
+      paymentId,
+      recipient: redactEmail(recipient),
+      accepted: result.ok,
+      status: result.status ?? null,
+      messageId: result.messageId ?? null,
+      error: result.error ?? null,
+    });
+
+    return result;
+  } catch (error) {
+    console.error("[Payment] Confirmation email failed", {
+      provider: "Brevo",
+      paymentId,
+      recipient: redactEmail(recipient),
+      error: error?.message,
+    });
+    return { ok: false, error: error?.message || "Unable to send payment confirmation email." };
+  }
 };
 
 const getCrmCustomer = (responseData) => {
@@ -250,8 +326,8 @@ const verifyPaymentSignature = ({ razorpay_order_id, razorpay_payment_id, razorp
 };
 
 const activateCrmPurchase = async ({ paymentId, purchaseData = {} }) => {
-  if (!env.crmApiBaseUrl) {
-    throw new Error("CRM API base URL is not configured");
+  if (!env.purchaseActivationApiBaseUrl) {
+    throw new Error("Purchase activation API base URL is not configured");
   }
 
   const controller = new AbortController();
@@ -263,7 +339,7 @@ const activateCrmPurchase = async ({ paymentId, purchaseData = {} }) => {
   let response;
 
   try {
-    response = await fetch(`${env.crmApiBaseUrl}/subscription-sync/pricing/purchase-success`, {
+    response = await fetch(`${env.purchaseActivationApiBaseUrl}/subscription-sync/pricing/purchase-success`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       signal: controller.signal,
@@ -311,26 +387,38 @@ const verifyAndActivatePayment = async (payload) => {
     throw error;
   }
 
+  let activated = false;
+  let activationError;
+  let crmResponse;
+
   try {
-    const crmResponse = await activateCrmPurchase({
+    crmResponse = await activateCrmPurchase({
       paymentId: payload.razorpay_payment_id,
       purchaseData: payload.purchaseData,
     });
-
-    return {
-      verified: true,
-      activated: true,
-      crmResponse,
-    };
+    activated = true;
   } catch (error) {
     console.error("Payment verified but CRM purchase activation failed:", error);
-
-    return {
-      verified: true,
-      activated: false,
-      activationError: error.message || "CRM purchase activation failed",
-    };
+    activationError = error.message || "CRM purchase activation failed";
   }
+
+  const confirmationEmail = await sendPaymentConfirmationEmail({
+    paymentId: payload.razorpay_payment_id,
+    purchaseData: payload.purchaseData,
+    activated,
+  });
+
+  return {
+    verified: true,
+    activated,
+    activationError,
+    crmResponse,
+    confirmationEmail: {
+      sent: confirmationEmail.ok,
+      messageId: confirmationEmail.messageId || null,
+      error: confirmationEmail.error || null,
+    },
+  };
 };
 
 module.exports = {

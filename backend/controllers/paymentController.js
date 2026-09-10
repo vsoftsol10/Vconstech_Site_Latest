@@ -57,6 +57,7 @@ const verifyPayment = async (req, res, next) => {
         verified: result.verified,
         activated: result.activated,
         activationError: result.activationError,
+        confirmationEmail: result.confirmationEmail,
       })
     );
   } catch (error) {

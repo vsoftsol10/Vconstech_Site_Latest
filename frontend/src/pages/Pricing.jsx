@@ -498,11 +498,15 @@ const CheckoutPanel = ({ plan, onClose, onCancel, pricingCustomer }) => {
           const verifyResponse = await fetch(`${WEBSITE_API_BASE_URL}/payment/verify`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
+              body: JSON.stringify({
               razorpay_order_id: response?.razorpay_order_id,
               razorpay_payment_id: response?.razorpay_payment_id,
               razorpay_signature: response?.razorpay_signature,
-              purchaseData,
+              purchaseData: {
+                ...purchaseData,
+                amount: orderData?.data?.amount?.total ?? null,
+                currency: 'INR',
+              },
             })
           });
 
