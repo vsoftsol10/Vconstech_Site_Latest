@@ -50,7 +50,8 @@ PORT=5000
 CORS_ORIGIN=https://vconstech.in,https://test1.vconstech.in,http://localhost:5173
 WEBSITE_URL=https://vconstech.in
 CRM_API_BASE_URL=https://vconstech-crm-new.onrender.com/api
-DUPLICATE_REGISTRATION_API_BASE_URL=https://your-erp-api.example.com/api
+# The ERP subscription-sync routes are mounted under /api.
+DUPLICATE_REGISTRATION_API_BASE_URL=https://vconstech-test.onrender.com/api
 SUPABASE_DB_URL=postgresql://postgres:password@db.your-project.supabase.co:5432/postgres
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your_backend_only_service_role_key

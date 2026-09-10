@@ -53,8 +53,18 @@ const findDuplicateRegistration = async ({ customer = {}, pricingCustomer = {} }
 
   const lookupUrl = `${env.duplicateRegistrationApiBaseUrl}${env.crmDuplicateRegistrationPath}?${query.toString()}`;
   const response = await fetch(lookupUrl);
+  const responseText = await response.text();
+  let data = {};
 
-  const data = await response.json().catch(() => ({}));
+  if (responseText.trim()) {
+    try {
+      data = JSON.parse(responseText);
+    } catch (parseError) {
+      const error = new Error("Duplicate registration lookup returned an invalid response.");
+      error.statusCode = 502;
+      throw error;
+    }
+  }
   console.info("[Payment] Duplicate registration CRM response", {
     lookupUrl: lookupUrl.replace(/([?&]email=)[^&]*/i, "$1[redacted]"),
     status: response.status,
@@ -65,7 +75,7 @@ const findDuplicateRegistration = async ({ customer = {}, pricingCustomer = {} }
   });
 
   const routeIsMissing = response.status === 404 && /api route not found|cannot get/i.test(
-    String(data?.error || data?.message || data || "")
+    String(data?.error || data?.message || responseText || "")
   );
 
   // A missing customer is valid; the caller may continue with payment.
