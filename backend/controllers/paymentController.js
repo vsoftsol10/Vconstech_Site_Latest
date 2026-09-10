@@ -34,7 +34,7 @@ const checkDuplicateRegistration = async (req, res, next) => {
     if (result.duplicate) {
       return res.status(409).json({
         success: false,
-        message: "A user with this email and company is already registered.",
+        message: "This email already has an active subscription.",
         data: { duplicate: true },
       });
     }

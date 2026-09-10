@@ -18,6 +18,11 @@ const normalizeRegistrationValue = (value) =>
 const hasActiveSubscription = (customer) =>
   normalizeRegistrationValue(customer?.subscriptionStatus) === "subscription_active";
 
+const redactEmail = (value) => {
+  const [localPart, domain] = String(value || "").split("@");
+  return domain ? `${localPart.slice(0, 2)}***@${domain}` : "[redacted]";
+};
+
 const getCrmCustomer = (responseData) => {
   if (Array.isArray(responseData)) return responseData[0] || null;
 
@@ -31,10 +36,9 @@ const getCrmCustomer = (responseData) => {
 // Keep this check server-side so callers cannot create an order by skipping the UI.
 const findDuplicateRegistration = async ({ customer = {}, pricingCustomer = {} }) => {
   const email = normalizeRegistrationValue(customer.email);
-  const companyName = normalizeRegistrationValue(customer.companyName);
 
-  if (!email || !companyName) {
-    const error = new Error("Email and company name are required to validate registration.");
+  if (!email) {
+    const error = new Error("Email is required to validate registration.");
     error.statusCode = 400;
     throw error;
   }
@@ -47,7 +51,6 @@ const findDuplicateRegistration = async ({ customer = {}, pricingCustomer = {} }
 
   const query = new URLSearchParams({
     email,
-    companyName,
     customerId: pricingCustomer.customerId || pricingCustomer.crmCustomerId || pricingCustomer.erpCustomerId || "",
     crmCustomerId: pricingCustomer.crmCustomerId || "",
     erpCustomerId: pricingCustomer.erpCustomerId || "",
@@ -68,13 +71,17 @@ const findDuplicateRegistration = async ({ customer = {}, pricingCustomer = {} }
       throw error;
     }
   }
+  const lookupCustomer = getCrmCustomer(data);
   console.info("[Payment] Duplicate registration CRM response", {
     lookupUrl: lookupUrl.replace(/([?&]email=)[^&]*/i, "$1[redacted]"),
     status: response.status,
     ok: response.ok,
-    requestedEmail: email,
-    requestedCompanyName: companyName,
-    crmResponse: data,
+    requestedEmail: redactEmail(email),
+    responseSuccess: data?.success ?? null,
+    responseError: data?.error || data?.message || null,
+    customerFound: Boolean(lookupCustomer),
+    accountStatus: lookupCustomer?.accountStatus ?? null,
+    subscriptionStatus: lookupCustomer?.subscriptionStatus ?? null,
   });
 
   const routeIsMissing = response.status === 404 && /api route not found|cannot get/i.test(
@@ -84,8 +91,7 @@ const findDuplicateRegistration = async ({ customer = {}, pricingCustomer = {} }
   // A missing customer is valid; the caller may continue with payment.
   if (response.status === 404 && !routeIsMissing) {
     console.info("[Payment] Duplicate registration comparison", {
-      requestedEmail: email,
-      requestedCompanyName: companyName,
+      requestedEmail: redactEmail(email),
       existingEmail: "",
       existingCompanyName: "",
       duplicate: false,
@@ -101,18 +107,15 @@ const findDuplicateRegistration = async ({ customer = {}, pricingCustomer = {} }
     throw error;
   }
 
-  const existingCustomer = getCrmCustomer(data);
+  const existingCustomer = lookupCustomer;
   const existingEmail = normalizeRegistrationValue(existingCustomer?.email);
-  const existingCompany = normalizeRegistrationValue(existingCustomer?.companyName || existingCustomer?.company);
-  const identityMatches = existingEmail === email && existingCompany === companyName;
+  const identityMatches = existingEmail === email;
   const activeSubscription = hasActiveSubscription(existingCustomer);
   const duplicate = identityMatches && activeSubscription;
 
   console.info("[Payment] Duplicate registration comparison", {
-    requestedEmail: email,
-    requestedCompanyName: companyName,
-    existingEmail,
-    existingCompanyName: existingCompany,
+    requestedEmail: redactEmail(email),
+    existingEmail: redactEmail(existingEmail),
     accountStatus: existingCustomer?.accountStatus ?? null,
     subscriptionStatus: existingCustomer?.subscriptionStatus ?? null,
     identityMatches,

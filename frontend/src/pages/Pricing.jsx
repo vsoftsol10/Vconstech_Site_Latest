@@ -11,6 +11,7 @@ const ERP_API_BASE_URL = (
   'http://localhost:5001/api'
 ).replace(/\/$/, '');
 const WEBSITE_API_BASE_URL = (import.meta.env.VITE_WEBSITE_API_BASE_URL || '/api').replace(/\/$/, '');
+const ERP_LOGIN_URL = import.meta.env.VITE_ERP_LOGIN_URL || 'https://erp.thevsoft.com';
 
 const getPricingLookupParams = () => {
   const searchParams = new URLSearchParams(window.location.search);
@@ -276,6 +277,9 @@ const CheckoutPanel = ({ plan, onClose, onCancel, pricingCustomer }) => {
   const [showCouponInput, setShowCouponInput] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [emailCheckState, setEmailCheckState] = useState('idle');
+  const [emailCheckMessage, setEmailCheckMessage] = useState('');
+  const emailCheckRequestId = useRef(0);
 
   const [form, setForm] = useState({
     name: '',
@@ -304,8 +308,55 @@ const CheckoutPanel = ({ plan, onClose, onCancel, pricingCustomer }) => {
     }));
   }, [pricingCustomer]);
 
-  const updateForm = (field, value) =>
+  const updateForm = (field, value) => {
+    if (field === 'email') {
+      emailCheckRequestId.current += 1;
+      setEmailCheckState('idle');
+      setEmailCheckMessage('');
+    }
     setForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const checkEmailForActiveSubscription = async () => {
+    const email = form.email.trim();
+    if (!/^\S+@\S+\.\S+$/.test(email) || hasLockedCustomer) return;
+
+    const requestId = emailCheckRequestId.current + 1;
+    emailCheckRequestId.current = requestId;
+    setEmailCheckState('checking');
+    setEmailCheckMessage('');
+
+    // A short delay prevents a blur caused by an immediate email correction
+    // from issuing a stale lookup request.
+    await new Promise(resolve => setTimeout(resolve, 250));
+    if (requestId !== emailCheckRequestId.current) return;
+
+    try {
+      const response = await fetch(`${WEBSITE_API_BASE_URL}/payment/check-duplicate-registration`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customer: { email } }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (requestId !== emailCheckRequestId.current) return;
+
+      if (response.status === 409 || data?.data?.duplicate) {
+        setEmailCheckState('active');
+        setEmailCheckMessage('This email already has an active plan.');
+        return;
+      }
+      if (!response.ok) {
+        setEmailCheckState('error');
+        setEmailCheckMessage(data?.message || 'We could not verify this email. Please try again.');
+        return;
+      }
+      setEmailCheckState('available');
+    } catch (error) {
+      if (requestId !== emailCheckRequestId.current) return;
+      setEmailCheckState('error');
+      setEmailCheckMessage('We could not verify this email. Please check your connection and try again.');
+    }
+  };
 
   if (!plan) return null;
 
@@ -347,6 +398,13 @@ const CheckoutPanel = ({ plan, onClose, onCancel, pricingCustomer }) => {
   const handlePayment = async () => {
     if (!plan || isProcessing) return;
 
+    if (emailCheckState === 'active') {
+      setFormErrors({ email: emailCheckMessage });
+      return;
+    }
+
+    if (emailCheckState === 'checking') return;
+
     setIsProcessing(true);
 
     if (hasActiveSelectedPlan(pricingCustomer, plan.name)) {
@@ -383,46 +441,6 @@ const CheckoutPanel = ({ plan, onClose, onCancel, pricingCustomer }) => {
     };
 
     try {
-      const duplicateCheckPayload = {
-        customer: {
-          email: form.email,
-          companyName: form.companyName,
-        },
-        pricingCustomer: {
-          userId: pricingCustomer?.userId || '',
-          customerId: pricingCustomer?.crmCustomerId || pricingCustomer?.erpCustomerId || '',
-          crmCustomerId: pricingCustomer?.crmCustomerId || '',
-          erpCustomerId: pricingCustomer?.erpCustomerId || '',
-        },
-      };
-      const duplicateCheckUrl = `${WEBSITE_API_BASE_URL}/payment/check-duplicate-registration`;
-
-      console.info('[Checkout] Duplicate registration check request', {
-        url: duplicateCheckUrl,
-        payload: duplicateCheckPayload,
-      });
-
-      const duplicateResponse = await fetch(duplicateCheckUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(duplicateCheckPayload),
-      });
-      const duplicateData = await duplicateResponse.json().catch(() => ({}));
-
-      console.info('[Checkout] Duplicate registration check response', {
-        status: duplicateResponse.status,
-        ok: duplicateResponse.ok,
-        body: duplicateData,
-      });
-
-      if (duplicateResponse.status === 409 || duplicateData?.data?.duplicate) {
-        throw new Error(duplicateData.message || 'You are already an active customer.');
-      }
-
-      if (!duplicateResponse.ok) {
-        throw new Error(duplicateData.message || 'Unable to validate existing registration.');
-      }
-
       const scriptLoaded = await loadRazorpayScript();
       if (!scriptLoaded || !window.Razorpay) {
         throw new Error('Unable to load payment gateway. Please check your connection and try again.');
@@ -728,13 +746,31 @@ const CheckoutPanel = ({ plan, onClose, onCancel, pricingCustomer }) => {
                 value={form.email}
                 readOnly={hasLockedCustomer}
                 onChange={e => !hasLockedCustomer && updateForm('email', e.target.value)}
+                onBlur={checkEmailForActiveSubscription}
                 className={`w-full border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#ffbe01]/20 focus:border-[#ffbe01] ${
-                  formErrors.email ? 'border-red-400' : 'border-gray-300'
+                  formErrors.email || emailCheckState === 'active' || emailCheckState === 'error' ? 'border-red-400' : 'border-gray-300'
                 } ${hasLockedCustomer ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''
                 }`}
               />
               {formErrors.email && <p className="text-xs text-red-500">{formErrors.email}</p>}
+              {emailCheckState === 'checking' && (
+                <p className="inline-flex items-center gap-2 text-xs text-gray-500" role="status">
+                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-[#c9960a]" aria-hidden="true" />
+                  Checking email…
+                </p>
+              )}
+              {emailCheckState === 'active' && (
+                <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700" role="alert">
+                  {emailCheckMessage} <a href={ERP_LOGIN_URL} className="font-semibold underline">Log in to your dashboard</a> or contact support if you believe this is a mistake.
+                </p>
+              )}
+              {emailCheckState === 'error' && (
+                <p className="rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs text-yellow-800" role="alert">
+                  {emailCheckMessage}
+                </p>
+              )}
 
+              <fieldset disabled={emailCheckState === 'active'} className="contents">
               {/* Phone */}
               <input
                 type="tel"
@@ -812,6 +848,7 @@ const CheckoutPanel = ({ plan, onClose, onCancel, pricingCustomer }) => {
                   )}
                 </>
               )}
+              </fieldset>
             </div>
           </div>
 
@@ -987,7 +1024,7 @@ const CheckoutPanel = ({ plan, onClose, onCancel, pricingCustomer }) => {
           </button>
           <button
             onClick={handlePayment}
-            disabled={isProcessing || (isAdvancedPlan(plan.name) && priceNum === 0)}
+            disabled={isProcessing || emailCheckState === 'active' || emailCheckState === 'checking' || (isAdvancedPlan(plan.name) && priceNum === 0)}
             className="flex-1 py-3 rounded-xl bg-[#ffbe01] text-black font-semibold text-sm hover:bg-yellow-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isProcessing ? (
