@@ -19,6 +19,13 @@ const normalizeRegistrationValue = (value) =>
 const hasActiveSubscription = (customer) =>
   normalizeRegistrationValue(customer?.subscriptionStatus) === "subscription_active";
 
+const hasActivePaidAccount = (accountStatus, packageValue) => {
+  const normalizedAccountStatus = normalizeRegistrationValue(accountStatus);
+  const packageName = normalizeRegistrationValue(packageValue);
+
+  return normalizedAccountStatus === "active" && Boolean(packageName) && packageName !== "free";
+};
+
 const redactEmail = (value) => {
   const [localPart, domain] = String(value || "").split("@");
   return domain ? `${localPart.slice(0, 2)}***@${domain}` : "[redacted]";
@@ -170,6 +177,13 @@ const findDuplicateRegistration = async ({ customer = {}, pricingCustomer = {} }
       requestedEmail: redactEmail(email),
       existingEmail: "",
       existingCompanyName: "",
+      accountStatus: null,
+      package: null,
+      subscriptionStatus: null,
+      identityMatches: false,
+      activePaidAccount: false,
+      activeSubscription: false,
+      duplicateReason: "customer_not_found",
       duplicate: false,
     });
     return { duplicate: false };
@@ -186,16 +200,28 @@ const findDuplicateRegistration = async ({ customer = {}, pricingCustomer = {} }
   const existingCustomer = lookupCustomer;
   const existingEmail = normalizeRegistrationValue(existingCustomer?.email);
   const identityMatches = existingEmail === email;
+  const packageValue = existingCustomer?.package || existingCustomer?.subscriptionPlan;
+  const activePaidAccount = hasActivePaidAccount(existingCustomer?.accountStatus, packageValue);
   const activeSubscription = hasActiveSubscription(existingCustomer);
-  const duplicate = identityMatches && activeSubscription;
+  const duplicate = identityMatches && (activePaidAccount || activeSubscription);
+  const duplicateReason = !identityMatches
+    ? "email_mismatch"
+    : activePaidAccount
+      ? "active_account_with_paid_package"
+      : activeSubscription
+        ? "subscription_status_active"
+        : "no_active_subscription";
 
   console.info("[Payment] Duplicate registration comparison", {
     requestedEmail: redactEmail(email),
     existingEmail: redactEmail(existingEmail),
     accountStatus: existingCustomer?.accountStatus ?? null,
+    package: packageValue ?? null,
     subscriptionStatus: existingCustomer?.subscriptionStatus ?? null,
     identityMatches,
+    activePaidAccount,
     activeSubscription,
+    duplicateReason,
     duplicate,
   });
 
