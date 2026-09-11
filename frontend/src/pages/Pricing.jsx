@@ -720,9 +720,9 @@ const CheckoutPanel = ({ plan, onClose, onCancel, pricingCustomer }) => {
           </div>
 
           {/* Customer Details Form */}
-          <div>
-            <p className="text-sm font-semibold text-gray-800 mb-2">Your Details</p>
-            <div className="space-y-2">
+          <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-4 sm:p-5">
+            <p className="text-sm font-semibold text-gray-800 mb-4">Your Details</p>
+            <div className="space-y-4">
               {formErrors.form && (
                 <p className="text-xs bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2 text-yellow-800">
                   {formErrors.form}
@@ -774,7 +774,7 @@ const CheckoutPanel = ({ plan, onClose, onCancel, pricingCustomer }) => {
                 </p>
               )}
 
-              <fieldset disabled={emailCheckState === 'active'} className="contents">
+              <fieldset disabled={emailCheckState === 'active'} className="space-y-4">
               {/* Phone */}
               <input
                 type="tel"
