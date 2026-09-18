@@ -5,6 +5,7 @@ const env = {
   port: process.env.PORT || 5000,
   corsOrigin: process.env.CORS_ORIGIN || "*",
   adminEmail: process.env.ADMIN_EMAIL || "support@vconstech.in",
+  secondaryAdminEmail: process.env.SECONDARY_ADMIN_EMAIL || "vconstecherp@gmail.com",
   websiteUrl: process.env.WEBSITE_URL || "https://vconstech.in",
   crmApiBaseUrl: (process.env.CRM_API_BASE_URL || "").replace(/\/$/, ""),
   duplicateRegistrationApiBaseUrl: (process.env.DUPLICATE_REGISTRATION_API_BASE_URL || process.env.CRM_API_BASE_URL || "").replace(/\/$/, ""),

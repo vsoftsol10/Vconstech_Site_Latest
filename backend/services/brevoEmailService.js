@@ -56,9 +56,13 @@ const logBrevoError = (message, details) => {
 
 const sendEmail = async (options) => {
   const startedAt = Date.now();
+  const apiKey =
+    options.apiKey !== undefined ? options.apiKey : process.env.BREVO_API_KEY;
 
-  if (!process.env.BREVO_API_KEY) {
-    const message = "BREVO_API_KEY is not configured.";
+  if (!apiKey) {
+    const message = options.apiKey !== undefined
+      ? "The configured Brevo API key is empty."
+      : "BREVO_API_KEY is not configured.";
 
     logBrevoError("Brevo email failed", {
       duration: `${Date.now() - startedAt} ms`,
@@ -87,7 +91,7 @@ const sendEmail = async (options) => {
     const response = await fetch(BREVO_EMAIL_URL, {
       method: "POST",
       headers: {
-        "api-key": process.env.BREVO_API_KEY,
+        "api-key": apiKey,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(payload),

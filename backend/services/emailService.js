@@ -150,7 +150,7 @@ const sendContactEmails = async (contact, options = {}) => {
     ].join("\n"),
   });
 
-  const adminEmail = await sendLoggedContactEmail(requestId, "Admin", {
+  const adminEmail = {
     to: env.adminEmail,
     replyTo: `"${contact.fullName}" <${contact.email}>`,
     subject: "New Vconstech ERP Demo Request - Website Demo",
@@ -166,15 +166,28 @@ const sendContactEmails = async (contact, options = {}) => {
       `Requirements: ${contact.requirements || "Not provided"}`,
       `Submission Date & Time: ${contact.submissionTime}`,
     ].join("\n"),
-  });
+    apiKey: process.env.BREVO_SUPPORT_API_KEY,
+  };
+
+  const secondaryAdminEmail = {
+    ...adminEmail,
+    to: env.secondaryAdminEmail,
+    apiKey: process.env.BREVO_ERP_API_KEY,
+  };
+
+  const [supportEmail, erpEmail] = await Promise.all([
+    sendLoggedContactEmail(requestId, "Support Admin", adminEmail),
+    sendLoggedContactEmail(requestId, "ERP Admin", secondaryAdminEmail),
+  ]);
 
   logContactInfo(requestId, "Email sending duration", {
     duration: getElapsedMs(startedAt),
     customerEmailStatus: customerEmail.ok ? "fulfilled" : "failed",
-    adminEmailStatus: adminEmail.ok ? "fulfilled" : "failed",
+    supportEmailStatus: supportEmail.ok ? "fulfilled" : "failed",
+    erpEmailStatus: erpEmail.ok ? "fulfilled" : "failed",
   });
 
-  return [customerEmail, adminEmail];
+  return [customerEmail, supportEmail, erpEmail];
 };
 
 module.exports = { sendContactEmails };

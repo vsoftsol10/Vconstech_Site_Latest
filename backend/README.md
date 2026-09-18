@@ -62,9 +62,12 @@ RAZORPAY_KEY_SECRET=your_razorpay_key_secret
 CRM_DUPLICATE_REGISTRATION_PATH=/subscription-sync/pricing/customer
 
 BREVO_API_KEY=your_brevo_api_key
+BREVO_SUPPORT_API_KEY=your_support_brevo_api_key
+BREVO_ERP_API_KEY=your_erp_brevo_api_key
 SMTP_FROM_EMAIL=no-reply@vconstech.in
 SMTP_FROM_NAME=Vconstech ERP
 ADMIN_EMAIL=support@vconstech.in
+SECONDARY_ADMIN_EMAIL=vconstecherp@gmail.com
 ```
 
 ## Local Development
