@@ -159,61 +159,6 @@ const toWebsitePlan = (plan) => {
   };
 };
 
-const DEFAULT_PRICING_PLANS = sortPricingPlans([
-  {
-    id: 'trial',
-    name: 'Free Trial',
-    price: 0,
-    duration: '7 days',
-    description: 'Explore Vconstech ERP with the essential tools to evaluate your workflow.',
-    features: [
-      { feature_name: 'Project dashboard' },
-      { feature_name: 'Lead and customer management' },
-      { feature_name: 'Basic reports' },
-      { feature_name: 'Email support' },
-    ],
-  },
-  {
-    id: 'basic',
-    name: 'Basic',
-    price: 999,
-    duration: '/ month',
-    description: 'Simple construction ERP tools for small teams getting organized.',
-    features: [
-      { feature_name: 'Project management' },
-      { feature_name: 'Customer and lead tracking' },
-      { feature_name: 'Billing management' },
-      { feature_name: 'Standard reports' },
-    ],
-  },
-  {
-    id: 'premium',
-    name: 'Premium',
-    price: 1999,
-    duration: '/ month',
-    description: 'A complete plan for growing teams that need stronger operational control.',
-    features: [
-      { feature_name: 'Everything in Basic' },
-      { feature_name: 'Cost estimation' },
-      { feature_name: 'Material management' },
-      { feature_name: 'Advanced reports and analytics' },
-    ],
-  },
-  {
-    id: 'advanced',
-    name: 'Advanced',
-    price: 0,
-    duration: '',
-    description: 'Custom ERP support for larger teams with advanced project needs.',
-    features: [
-      { feature_name: 'Everything in Premium' },
-      { feature_name: 'Advanced project management' },
-      { feature_name: 'Custom member pricing' },
-      { feature_name: 'Priority implementation support' },
-    ],
-  },
-].map(toWebsitePlan));
-
 const fetchPricingPlans = async () => {
   const response = await fetch(`${WEBSITE_API_BASE_URL}/plans`);
   const data = await response.json();
@@ -238,6 +183,32 @@ const loadRazorpayScript = () => {
     document.body.appendChild(script);
   });
 };
+
+const PricingCardSkeleton = () => (
+  <div className="bg-white rounded-lg shadow-lg overflow-hidden" aria-hidden="true">
+    <div className="p-8 animate-pulse">
+      <div className="h-7 w-32 rounded bg-gray-200 mb-4" />
+      <div className="flex items-end gap-3 mb-6">
+        <div className="h-10 w-28 rounded bg-yellow-100" />
+        <div className="h-5 w-20 rounded bg-gray-200" />
+      </div>
+      <div className="h-5 w-full rounded bg-gray-200 mb-3" />
+      <div className="h-5 w-4/5 rounded bg-gray-200 mb-8" />
+      <div className="space-y-4 mb-8">
+        {[0, 1, 2, 3].map((item) => (
+          <div key={item} className="flex items-center gap-3">
+            <div className="h-5 w-5 rounded-full bg-yellow-100" />
+            <div className={`h-4 rounded bg-gray-200 ${item === 3 ? 'w-2/3' : 'w-4/5'}`} />
+          </div>
+        ))}
+      </div>
+      <div className="flex gap-3">
+        <div className="h-12 flex-1 rounded-md bg-yellow-100" />
+        <div className="h-12 flex-1 rounded-md bg-gray-800" />
+      </div>
+    </div>
+  </div>
+);
 
 const UPIIcon = () => (
   <svg viewBox="0 0 48 48" className="w-6 h-6" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -1082,8 +1053,9 @@ const Pricing = () => {
   const [pricingCustomer, setPricingCustomer] = useState(null);
   const [pricingMessage, setPricingMessage] = useState('');
   const [cancelledPlan, setCancelledPlan] = useState(null);
-  const [plans, setPlans] = useState(DEFAULT_PRICING_PLANS);
+  const [plans, setPlans] = useState([]);
   const [plansError, setPlansError] = useState('');
+  const [plansLoading, setPlansLoading] = useState(true);
 
   useEffect(() => {
     const params = getPricingLookupParams();
@@ -1118,6 +1090,7 @@ const Pricing = () => {
 
     const fetchPlans = async () => {
       setPlansError('');
+      setPlansLoading(true);
 
       try {
         const data = await fetchPricingPlans();
@@ -1125,14 +1098,17 @@ const Pricing = () => {
           ? sortPricingPlans(data.filter(isPlanVisible).map(toWebsitePlan))
           : [];
 
-        if (!ignore && nextPlans.length > 0) {
+        if (!ignore) {
           setPlans(nextPlans);
         }
       } catch (error) {
         console.error('Failed to fetch pricing plans:', error);
         if (!ignore) {
-          setPlansError('Live pricing is temporarily unavailable. Showing our standard plans.');
+          setPlans([]);
+          setPlansError('Pricing plans are temporarily unavailable. Please try again later.');
         }
+      } finally {
+        if (!ignore) setPlansLoading(false);
       }
     };
 
@@ -1239,13 +1215,19 @@ const Pricing = () => {
               {plansError}
             </div>
           )}
-          {!plansError && plans.length === 0 && (
+          {!plansLoading && !plansError && plans.length === 0 && (
             <div className="rounded-lg border border-gray-200 bg-white px-4 py-6 text-center text-gray-600">
               No subscription plans are currently available.
             </div>
           )}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8">
-            {plans.map((plan, index) => (
+          <div
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8"
+            aria-busy={plansLoading}
+            aria-label={plansLoading ? 'Loading subscription plans' : undefined}
+          >
+            {plansLoading
+              ? [0, 1, 2, 3].map((item) => <PricingCardSkeleton key={item} />)
+              : plans.map((plan, index) => (
               <div
                 key={plan.id || plan.name || index}
                 className={`bg-white rounded-lg shadow-lg overflow-hidden ${

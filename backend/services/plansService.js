@@ -118,16 +118,6 @@ const fetchPlansFromDatabase = async () => {
   }));
 };
 
-const fetchPlansFromCrm = async () => {
-  if (!env.crmApiBaseUrl) {
-    const error = new Error("CRM API base URL is not configured");
-    error.statusCode = 502;
-    throw error;
-  }
-
-  return fetchJson(`${env.crmApiBaseUrl}/plans`);
-};
-
 const fetchPricingPlans = async () => {
   if (getSupabaseRestUrl() && env.supabaseKey) {
     return fetchPlansFromSupabase();
@@ -137,11 +127,12 @@ const fetchPricingPlans = async () => {
     return fetchPlansFromDatabase();
   }
 
-  return fetchPlansFromCrm();
+  const error = new Error("Supabase pricing configuration is not configured");
+  error.statusCode = 502;
+  throw error;
 };
 
 module.exports = {
   fetchPricingPlans,
   fetchPlansFromDatabase,
-  fetchPlansFromCrm: fetchPricingPlans,
 };
