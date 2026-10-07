@@ -2,12 +2,8 @@ const crypto = require("crypto");
 const Razorpay = require("razorpay");
 
 const { env } = require("../config/env");
-<<<<<<< HEAD
 const { fetchPlansFromCrm } = require("./plansService");
 const { sendEmail } = require("./brevoEmailService");
-=======
-const { fetchPricingPlans } = require("./plansService");
->>>>>>> e591e30 (Plans Page updated)
 
 const normalizePlanName = (value) =>
   String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
@@ -286,7 +282,6 @@ const normalizeRazorpayError = (error) => {
 };
 
 const createPaymentOrder = async ({ planId, billingCycle, customer = {}, customMembers, purchaseFlow, pricingCustomer = {} }) => {
-<<<<<<< HEAD
   const registrationCheck = await findDuplicateRegistration({ customer, pricingCustomer });
   if (registrationCheck.duplicate) {
     const error = new Error("A user with this email and company is already registered.");
@@ -295,9 +290,6 @@ const createPaymentOrder = async ({ planId, billingCycle, customer = {}, customM
   }
 
   const plans = await fetchPlansFromCrm();
-=======
-  const plans = await fetchPricingPlans();
->>>>>>> e591e30 (Plans Page updated)
   const plan = Array.isArray(plans) ? findPlanById(plans, planId) : null;
 
   if (!plan) {
