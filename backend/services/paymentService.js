@@ -2,7 +2,7 @@ const crypto = require("crypto");
 const Razorpay = require("razorpay");
 
 const { env } = require("../config/env");
-const plans = await fetchPricingPlans();
+const { fetchPricingPlans } = require("./plansService");
 const { sendEmail } = require("./brevoEmailService");
 
 const normalizePlanName = (value) =>
@@ -289,7 +289,7 @@ const createPaymentOrder = async ({ planId, billingCycle, customer = {}, customM
     throw error;
   }
 
-  const plans = await fetchPlansFromCrm();
+  const plans = await fetchPricingPlans();
   const plan = Array.isArray(plans) ? findPlanById(plans, planId) : null;
 
   if (!plan) {
