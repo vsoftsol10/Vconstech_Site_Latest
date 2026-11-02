@@ -2,7 +2,7 @@ const crypto = require("crypto");
 const Razorpay = require("razorpay");
 
 const { env } = require("../config/env");
-const { fetchPlansFromCrm } = require("./plansService");
+const plans = await fetchPricingPlans();
 const { sendEmail } = require("./brevoEmailService");
 
 const normalizePlanName = (value) =>
