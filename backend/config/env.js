@@ -11,6 +11,7 @@ const env = {
   duplicateRegistrationApiBaseUrl: (process.env.DUPLICATE_REGISTRATION_API_BASE_URL || process.env.CRM_API_BASE_URL || "").replace(/\/$/, ""),
   purchaseActivationApiBaseUrl: (process.env.PURCHASE_ACTIVATION_API_BASE_URL || process.env.DUPLICATE_REGISTRATION_API_BASE_URL || "").replace(/\/$/, ""),
   crmDuplicateRegistrationPath: process.env.CRM_DUPLICATE_REGISTRATION_PATH || "/subscription-sync/pricing/customer",
+  integrationApiKey: process.env.INTEGRATION_API_KEY || "",
   supabaseUrl: (process.env.SUPABASE_URL || "").replace(/\/$/, ""),
   supabaseDbUrl: process.env.SUPABASE_DB_URL || "",
   supabaseKey: process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || "",

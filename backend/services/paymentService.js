@@ -355,6 +355,9 @@ const activateCrmPurchase = async ({ paymentId, purchaseData = {} }) => {
   if (!env.purchaseActivationApiBaseUrl) {
     throw new Error("Purchase activation API base URL is not configured");
   }
+  if (!env.integrationApiKey) {
+    throw new Error("Purchase activation integration API key is not configured");
+  }
 
   const controller = new AbortController();
   const timeoutMs = Number.isFinite(env.crmRequestTimeoutMs) && env.crmRequestTimeoutMs > 0
@@ -368,9 +371,9 @@ const activateCrmPurchase = async ({ paymentId, purchaseData = {} }) => {
     response = await fetch(`${env.purchaseActivationApiBaseUrl}/subscription-sync/pricing/purchase-success`, {
       method: "POST",
       headers: {
-  "Content-Type": "application/json",
-  "x-api-key": env.integrationApiKey,
-},
+        "Content-Type": "application/json",
+        "x-api-key": env.integrationApiKey,
+      },
       signal: controller.signal,
       body: JSON.stringify({
         purchaseFlow: purchaseData.purchaseFlow,

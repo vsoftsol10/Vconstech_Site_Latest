@@ -53,6 +53,7 @@ CRM_API_BASE_URL=https://vconstech-crm-new.onrender.com/api
 # The ERP subscription-sync routes are mounted under /api.
 DUPLICATE_REGISTRATION_API_BASE_URL=https://vconstech-test.onrender.com/api
 PURCHASE_ACTIVATION_API_BASE_URL=https://vconstech-test.onrender.com/api
+INTEGRATION_API_KEY=your_shared_integration_api_key
 SUPABASE_DB_URL=postgresql://postgres:password@db.your-project.supabase.co:5432/postgres
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your_backend_only_service_role_key
@@ -100,7 +101,7 @@ curl -X POST http://localhost:5000/api/contact ^
 2. Create a Render Web Service.
 3. Set build command: `npm install`
 4. Set start command: `npm start`
-5. Add all required environment variables from `.env.example`.
+5. Add all required environment variables from `.env.example`. Set `INTEGRATION_API_KEY` to the same secret configured on the service receiving purchase activation requests.
 6. Set `CORS_ORIGIN` to the deployed website URL. Use comma-separated values when more than one domain should access the API.
 7. Deploy.
 8. Verify `https://your-render-service.onrender.com/api/health`.
