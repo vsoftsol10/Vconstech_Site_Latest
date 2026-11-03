@@ -367,7 +367,10 @@ const activateCrmPurchase = async ({ paymentId, purchaseData = {} }) => {
   try {
     response = await fetch(`${env.purchaseActivationApiBaseUrl}/subscription-sync/pricing/purchase-success`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+  "Content-Type": "application/json",
+  "x-api-key": env.integrationApiKey,
+},
       signal: controller.signal,
       body: JSON.stringify({
         purchaseFlow: purchaseData.purchaseFlow,
